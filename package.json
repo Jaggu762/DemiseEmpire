@@ -20,7 +20,6 @@
     "riffy-spotify": "^1.0.0",
     "spotify-url-info": "^3.2.2",
     "uuid": "^9.0.1"
-    "chartjs-node-canvas": "^4.1.6"
   },
   "author": "DargoTamber",
   "license": "MIT"
