@@ -462,7 +462,6 @@ async function checkLinks(message) {
     }
 }
 
-// ========== AWARD XP FOR MESSAGES ==========
 async function awardMessageXP(message, client, db) {
     try {
         // Skip if no database or message is from bot
@@ -478,73 +477,57 @@ async function awardMessageXP(message, client, db) {
         // Get user's economy data
         const economy = await db.getUserEconomy(userId, guildId);
         
-        // Check cooldown (1 minute) - but only for XP, still count messages
+        // Always update message count
+        const currentMessages = economy?.messages || 0;
+        const currentXP = economy?.xp || 0;
+        const currentLevel = economy?.level || 1;
+        
+        // Check cooldown (1 minute)
         const now = Date.now();
         const lastMessageTime = economy?.last_message_xp || 0;
         const cooldown = config.xp_cooldown || 60000; // Default 1 minute
         
-        // Always update message count, even if no XP awarded
-        const currentMessages = economy?.messages || 0;
-        
-        // Update message count in database
-        await db.updateUserEconomy(userId, guildId, {
+        // Initialize updates object
+        const updates = {
             messages: currentMessages + 1,
             updated_at: now
-        });
+        };
         
-        // Check if we should award XP (1 minute cooldown)
-        let xpAwarded = false;
-        let xpToAward = 0;
-        let newXP = economy?.xp || 0;
-        let newLevel = economy?.level || 1;
-        
+        // Award XP if cooldown has passed
         if (now - lastMessageTime >= cooldown) {
-            // Calculate XP to award
             const xpPerMessage = config.xp_per_message || 15;
             const multiplier = config.level_multiplier || 1.0;
-            xpToAward = Math.floor(xpPerMessage * multiplier);
+            const xpToAward = Math.floor(xpPerMessage * multiplier);
             
-            // Get current level before XP addition
-            const currentXP = economy?.xp || 0;
-            const currentLevel = economy?.level || 1;
+            const newXP = currentXP + xpToAward;
+            const newLevel = calculateLevelFromXP(newXP);
             
-            // Update XP and cooldown
-            newXP = currentXP + xpToAward;
-            newLevel = calculateLevelFromXP(newXP);
+            // Add XP and update cooldown
+            updates.xp = newXP;
+            updates.last_message_xp = now;
             
-            // Update user's economy with XP
-            await db.updateUserEconomy(userId, guildId, {
-                xp: newXP,
-                last_message_xp: now
-            });
+            console.log(`[XP] Awarded ${xpToAward} XP to ${message.author.tag}. Total: ${newXP} XP, Level: ${newLevel}`);
             
-            xpAwarded = true;
-            
-            // If level increased
+            // Check for level up
             if (newLevel > currentLevel) {
-                // Update level in database
-                await db.updateUserEconomy(userId, guildId, {
-                    level: newLevel
-                });
+                updates.level = newLevel;
                 
-                // Get level command module
+                console.log(`[LEVEL UP] ${message.author.tag} reached level ${newLevel}!`);
+                
+                // Announce level up
                 try {
                     const levelCommand = require('./commands/levels/level.js');
                     if (levelCommand.checkLevelRewards) {
-                        // Check for rewards and announce level up
                         await levelCommand.checkLevelRewards(guildId, message.author, newLevel, client, db, message);
                     }
                 } catch (error) {
-                    console.error('Failed to load level command for rewards:', error.message);
+                    console.error('Failed to announce level up:', error.message);
                 }
             }
-            
-            // Debug log
-            console.log(`[XP] Awarded ${xpToAward} XP to ${message.author.tag} in ${message.guild.name}`);
         }
         
-        // Optional: Log message count for debugging
-        console.log(`[Messages] ${message.author.tag}: ${currentMessages + 1} messages total`);
+        // Update database with all changes at once
+        await db.updateUserEconomy(userId, guildId, updates);
         
     } catch (error) {
         console.error('Award message XP error:', error);
