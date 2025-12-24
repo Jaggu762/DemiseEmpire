@@ -1,391 +1,234 @@
-# 🤖 DTEmpire v2 Discord Bot
+<p align="center">
+  <img src="https://i.imgur.com/exDGDGc.png" alt="DTEmpire Banner" />
+</p>
 
-A feature-rich, multi-purpose Discord bot with AI capabilities, moderation tools, music streaming, economy system, and much more. Designed for modern Discord servers looking for an all-in-one solution.
+<h1 align="center">🤖 DTEmpire v2</h1>
 
----
+<p align="center">
+  A powerful, all-in-one Discord bot featuring AI tools, moderation, music, economy, utilities, and more — built for modern Discord servers.
+</p>
 
-## ✨ Features
-
-### 📁 **AI Integration** (4 commands)
-- **aichat** - Chat with various AI models
-- **imagegen** - Generate AI-powered images
-- **tts** - Convert text to speech
-- **videogen** - Generate videos using AI
-
-### 📁 **Admin Tools** (2 commands)
-- **setchannel** - Set various channel configurations for the server
-- **setlogs** - Automatically create essential log channels in a specified category
-
-### 📁 **Config** (1 command)
-- **setguildjoin** - Set a channel to see new servers the bot is joining
-
-### 📁 **Economy System** (1 command)
-- **economy** - Advanced economy system with properties, jobs, and lottery
-
-### 📁 **Fun & Games** (3 commands)
-- **giveaway** - Manage giveaways in your server
-- **snipe** - Show recently deleted/edited messages and ghost pings
-- **sticky** - Manage sticky messages in channels
-
-### 📁 **Information** (2 commands)
-- **getguilds** - Display info about multiple servers
-- **servers** - Display all servers the bot is in
-
-### 📁 **Leveling System** (1 command)
-- **level** - Level system - check your rank and progress
-
-### 📁 **Moderation** (3 commands)
-- **cleanup** - Cleanup and message management commands
-- **mod** - Moderation commands for server management
-- **welcome** - Configure welcome/leave messages
-
-### 📁 **Owner Tools** (1 command)
-- **globalbadwords** - Bot owner only - Manage global bad words for all servers
-
-### 📁 **Ticket System** (1 command)
-- **ticket** - Complete ticket system commands for support management
-
-### 📁 **Utility** (11 commands)
-- **announce** - Create beautiful announcements like in the example image
-- **autoroom** - Setup automatic voice channel creation
-- **dm** - Send a direct message to a user
-- **help** - Shows all available commands
-- **info** - Shows information about the bot
-- **invite** - Get bot invite links and support server
-- **restart** - Restart the bot (Owner only)
-- **serverstats** - Get detailed statistics about the server
-- **uptime** - Shows bot uptime and system resource usage
-- **whois** - Get information about a user
-- **youtube** - Setup YouTube notifications for your channel
-
-### 📁 **Music System** (9 commands)
-- **music** - Show music commands help
-- **nowplaying** - Show information about the current song
-- **pause** - Pause the current song
-- **play** - Play music from YouTube, Spotify, etc.
-- **queue** - Show the current music queue
-- **resume** - Resume the paused song
-- **skip** - Skip the current song
-- **stop** - Stop the music and clear the queue
-- **volume** - Adjust the music volume
+<p align="center">
+  <a href="https://dsc.gg/dtempirev2">
+    <img src="https://img.shields.io/badge/Invite-DTEmpire-blue?style=for-the-badge&logo=discord" />
+  </a>
+  <a href="https://discord.gg/eVuKw3VrvX">
+    <img src="https://img.shields.io/badge/Support-Server-purple?style=for-the-badge&logo=discord" />
+  </a>
+</p>
 
 ---
 
-## 🚀 Quick Setup
+## 📌 Overview
 
-### Invite the Bot:
-[![Invite DTEmpire](https://img.shields.io/badge/Invite-DTEmpire-blue?style=for-the-badge&logo=discord)](https://dsc.gg/dtempirev2)
+**DTEmpire** is a feature-rich Discord bot designed to cover everything a normal server needs — from **AI integration** and **music playback** to **moderation**, **economy**, **tickets**, and **automation**.
 
-### Support Server:
-[![Support Server](https://img.shields.io/badge/Support-Server-purple?style=for-the-badge&logo=discord)](https://discord.gg/eVuKw3VrvX)
-
-### Prefix: `^`
-### Version: 2.6.9
-### Total Commands: 39
+- Prefix: `^`
+- Version: **2.6.9**
+- Total Commands: **39**
+- Categories: **12**
+- Built with **Discord.js v14**
 
 ---
 
-## 📋 Detailed Command Guide
+## ✨ Key Features
 
-### 🤖 **AI Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^aichat` | Chat with AI using different models | `^aichat <your message>` |
-| `^imagegen` | Generate images using AI | `^imagegen <prompt>` |
-| `^tts` | Convert text to speech | `^tts <text>` |
-| `^videogen` | Generate videos using AI | `^videogen <prompt>` |
-
-### ⚙️ **Admin Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^setchannel` | Set various channel configurations | `^setchannel <type> <#channel>` |
-| `^setlogs` | Auto-create essential log channels | `^setlogs [category-name]` |
-
-### 🔧 **Config Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^setguildjoin` | Set channel for new server notifications | `^setguildjoin <#channel>` |
-
-### 💰 **Economy Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^economy` | Advanced economy system | `^economy balance`<br>`^economy work`<br>`^economy properties`<br>`^economy lottery` |
-
-### 🎮 **Fun Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^giveaway` | Manage giveaways | `^giveaway create <time> <winners> <prize>` |
-| `^snipe` | Show deleted/edited messages | `^snipe` |
-| `^sticky` | Manage sticky messages | `^sticky set <message>`<br>`^sticky remove` |
-
-### ℹ️ **Info Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^getguilds` | Display info about multiple servers | `^getguilds` |
-| `^servers` | Display all servers bot is in | `^servers` |
-
-### 📊 **Leveling Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^level` | Check rank and progress | `^level`<br>`^level [@user]` |
-
-### 🛡️ **Moderation Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^cleanup` | Cleanup messages | `^cleanup <amount>` |
-| `^mod` | Moderation commands | `^mod kick @user`<br>`^mod ban @user`<br>`^mod mute @user` |
-| `^welcome` | Configure welcome messages | `^welcome setup` |
-
-### 👑 **Owner Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^globalbadwords` | Manage global bad words | `^globalbadwords add <word>`<br>`^globalbadwords list` |
-
-### 🎫 **Ticket Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^ticket` | Ticket system | `^ticket setup`<br>`^ticket close`<br>`^ticket add @user` |
-
-### 🛠️ **Utility Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^announce` | Create announcements | `^announce <title> \| <description>` |
-| `^autoroom` | Setup auto voice channels | `^autoroom setup <channel>` |
-| `^dm` | Send DM to user | `^dm @user <message>` |
-| `^help` | Show commands | `^help [category]` |
-| `^info` | Bot information | `^info` |
-| `^invite` | Invite links | `^invite` |
-| `^restart` | Restart bot (Owner) | `^restart` |
-| `^serverstats` | Server statistics | `^serverstats` |
-| `^uptime` | Bot uptime | `^uptime` |
-| `^whois` | User information | `^whois [@user]` |
-| `^youtube` | YouTube notifications | `^youtube setup <channel_id>` |
-
-### 🎵 **Music Commands**
-| Command | Description | Usage |
-|---------|-------------|-------|
-| `^music` | Music help | `^music` |
-| `^nowplaying` | Current song info | `^nowplaying` |
-| `^pause` | Pause song | `^pause` |
-| `^play` | Play music | `^play <song/url>` |
-| `^queue` | Show queue | `^queue` |
-| `^resume` | Resume song | `^resume` |
-| `^skip` | Skip song | `^skip` |
-| `^stop` | Stop music | `^stop` |
-| `^volume` | Adjust volume | `^volume <1-100>` |
+- 🤖 **AI Chat, Image, Video & TTS**
+- 🛡️ **Advanced Moderation & Logging**
+- 💰 **Economy with Jobs, Properties & Lottery**
+- 🎵 **High-Quality Music System**
+- 🎫 **Complete Ticket System**
+- 📊 **Server Statistics & Utilities**
+- ⚙️ **Auto Rooms, YouTube Alerts & Automation**
 
 ---
 
-## ⚙️ Configuration Guide
+## 📂 Command Categories
 
-### Setting Up Log Channels
+### 🤖 AI (4)
+- `aichat` – Chat with AI using different models  
+- `imagegen` – Generate AI images  
+- `tts` – Text to speech  
+- `videogen` – AI video generation  
+
+### 🛠️ Admin (2)
+- `setchannel` – Configure bot channels  
+- `setlogs` – Auto-create server log channels  
+
+### ⚙️ Config (1)
+- `setguildjoin` – Log servers the bot joins  
+
+### 💰 Economy (1)
+- `economy` – Jobs, properties, lottery & banking  
+
+### 🎉 Fun (3)
+- `giveaway` – Create & manage giveaways  
+- `snipe` – View deleted/edited messages  
+- `sticky` – Sticky messages in channels  
+
+### ℹ️ Info (2)
+- `getguilds` – View multiple server info  
+- `servers` – List all servers bot is in  
+
+### 📊 Leveling (1)
+- `level` – Check XP, rank & progress  
+
+### 🛡️ Moderation (3)
+- `cleanup` – Bulk message cleanup  
+- `mod` – Kick, ban, mute & more  
+- `welcome` – Welcome & leave messages  
+
+### 👑 Owner (1)
+- `globalbadwords` – Global word filter  
+
+### 🎫 Ticket (1)
+- `ticket` – Full support ticket system  
+
+### 🧰 Utility (11)
+- `announce` – Create professional announcements  
+- `autoroom` – Auto voice channel creation  
+- `dm` – DM users  
+- `help` – Show command list  
+- `info` – Bot info  
+- `invite` – Bot invite & support links  
+- `restart` – Restart bot (Owner only)  
+- `serverstats` – Detailed server stats  
+- `uptime` – Bot uptime & resources  
+- `whois` – User information  
+- `youtube` – YouTube notifications  
+
+### 🎵 Music (9)
+- `music` – Music help  
+- `nowplaying` – Current song info  
+- `pause` / `resume`  
+- `play` – YouTube, Spotify & more  
+- `queue` – View queue  
+- `skip` / `stop`  
+- `volume` – Adjust volume  
+
+---
+
+## 🖥️ Built-In Help Menu
+
+```text
+🤖 DTEmpire Help Menu
+Prefix: ^
+Version: 2.6.9
+Total Commands: 39
+
+📁 AI (4)
+aichat, imagegen, tts, videogen
+
+📁 Admin (2)
+setchannel, setlogs
+
+📁 Config (1)
+setguildjoin
+
+📁 Economy (1)
+economy
+
+📁 Fun (3)
+giveaway, snipe, sticky
+
+📁 Info (2)
+getguilds, servers
+
+📁 Leveling (1)
+level
+
+📁 Moderation (3)
+cleanup, mod, welcome
+
+📁 Owner (1)
+globalbadwords
+
+📁 Ticket (1)
+ticket
+
+📁 Utility (11)
+announce, autoroom, dm, help, info, invite,
+restart, serverstats, uptime, whois, youtube
+
+📁 Music (9)
+music, nowplaying, pause, play, queue,
+resume, skip, stop, volume
+````
+
+---
+
+## 🚀 Quick Setup (Self-Hosting)
+
+### 1️⃣ Clone the Repository
+
 ```bash
-^setlogs
-```
-Automatically creates essential log channels in a specified category including:
-- Moderation logs
-- Message logs
-- Member logs
-- Server logs
-
-### Channel Configuration
-```bash
-^setchannel welcome #welcome-channel
-^setchannel logs #mod-logs
-^setchannel music #music-commands
-```
-Configure specific channels for different bot functions.
-
-### Ticket System Setup
-```bash
-^ticket setup
-```
-Creates a ticket system with:
-- Ticket creation panel
-- Support team management
-- Transcript logging
-
-### Auto Room Setup
-```bash
-^autoroom setup #voice-lobby
-```
-Creates automatic voice channels when users join the lobby channel.
-
----
-
-## 🎮 Economy System Features
-
-### **Properties System**
-- Buy and sell virtual properties
-- Property upgrades and management
-- Rental income system
-
-### **Job System**
-- Complete jobs to earn currency
-- Different job types with varying rewards
-- Cooldown management
-
-### **Lottery System**
-- Regular lottery drawings
-- Ticket purchases
-- Jackpot prizes
-
-### **Banking Features**
-- Secure currency storage
-- Interest system
-- Transaction history
-
----
-
-## 🎵 Music System Features
-
-### **Supported Sources:**
-- YouTube (videos, playlists, live streams)
-- Spotify (tracks, albums, playlists)
-- SoundCloud
-- Direct audio links
-
-### **Quality Features:**
-- High-quality audio playback
-- Queue management (shuffle, clear, remove)
-- Lyrics display (if available)
-- 24/7 radio mode
-
----
-
-## 🛡️ Moderation System
-
-### **Automated Features:**
-- Welcome/leave messages
-- Auto-moderation with bad word filtering
-- Mass message cleanup
-- User warning system
-
-### **Manual Controls:**
-- Kick/ban with reason logging
-- Temporary mutes
-- User information lookup
-- Server lockdown capabilities
-
----
-
-## 🔧 Requirements
-
-- **Node.js**: v16.9.0 or higher
-- **Discord.js**: v14 or higher
-- **Permissions**: Administrator recommended for full functionality
-- **Python**: Required for AI features (optional)
-
-### **Bot Permissions Required:**
-```
-- Administrator (recommended)
-OR
-- Manage Channels
-- Manage Messages  
-- Kick/Ban Members
-- Manage Roles
-- Connect/Speak in Voice Channels
-- Embed Links
-- Attach Files
-- Read Message History
+git clone https://github.com/hyperdargo/DTEmpire-v2.git
+cd DTEmpire-v2
 ```
 
----
+### 2️⃣ Install Dependencies
 
-## 🛠️ Self-Hosting
-
-1. **Clone the repository:**
-```bash
-git clone https://github.com/yourusername/DTEmpire.git
-cd DTEmpire
-```
-
-2. **Install dependencies:**
 ```bash
 npm install
 ```
 
-3. **Configure environment variables:**
+### 3️⃣ Configure Environment Variables
+
 Create a `.env` file:
+
 ```env
-DISCORD_TOKEN=your_bot_token_here
+DISCORD_TOKEN=your_bot_token
 SPOTIFY_CLIENT_ID=your_spotify_id
 SPOTIFY_CLIENT_SECRET=your_spotify_secret
 OPENAI_API_KEY=your_openai_key
 DATABASE_URL=your_database_url
 ```
 
-4. **Start the bot:**
+### 4️⃣ Start the Bot
+
 ```bash
 npm start
-# or for development
+# or
 npm run dev
 ```
 
 ---
 
-## 📊 Statistics & Performance
+## 🔧 Requirements
 
-- **Version**: 2.6.9
-- **Total Commands**: 39
-- **Categories**: 12
-- **Uptime**: 99.8%+
-- **Response Time**: < 100ms
-- **Memory Usage**: Optimized for large servers
+* **Node.js** v16.9.0+
+* **Discord.js** v14+
+* **Administrator permission** recommended
+* **Python** (optional, for AI features)
 
 ---
 
-## 🤝 Support & Community
+## 🤝 Support & Links
 
-### **Official Support Channels:**
-- **Discord**: [DTEmpire Support Server](https://discord.gg/eVuKw3VrvX)
-- **Documentation**: [Full Documentation](https://docs.ankitgupta.com.np/)
-- **GitHub**: [Issues & Features](https://github.com/hyperdargo/DTEmpire-v2/issues)
-
-### **Getting Help:**
-1. Check `^help` for command information
-2. Visit the support server
-3. Read the documentation
-4. Submit bug reports on GitHub
-
----
-
-## 🔄 Update Log
-
-### **What's New in v2.6.9:**
-- 39 total commands across 12 categories
-- Enhanced AI capabilities
-- Improved music system stability
-- Bug fixes and performance improvements
-
-### **Planned Features:**
-- More AI model integrations
-- Advanced economy trading
-- Custom command creation
-- Dashboard web interface
+* 💬 **Discord Support**: [https://discord.gg/eVuKw3VrvX](https://discord.gg/eVuKw3VrvX)
+* 📚 **Documentation**: [https://docs.ankitgupta.com.np/](https://docs.ankitgupta.com.np/)
+* 🐛 **Issues & Requests**: GitHub Issues
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Licensed under the **MIT License**.
+See the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author & Credits
+## 👤 Author
 
-**Created by DargoTamber**
-- GitHub: [@hyperdargo](https://github.com/hyperdargo)
-- Discord: DargoTamber
-- Website: [ankitgupta.com.np](https://ankitgupta.com.np)
+**DargoTamber**
 
-### **Contributors:**
-- Open source community
-- Beta testers
-- Feature suggestors
+* GitHub: [https://github.com/hyperdargo](https://github.com/hyperdargo)
+* Discord: DargoTamber
+* Website: [https://ankitgupta.com.np](https://ankitgupta.com.np)
 
 ---
 
-*Last Updated: DTEmpire v2.6.9 | Created with ❤️ for the Discord community*
+<p align="center">
+  DTEmpire v2.6.9 • Built with ❤️ for the Discord community
+</p>
 
-**Prefix:** `^` | **Commands:** 39 | **Categories:** 12
