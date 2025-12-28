@@ -770,10 +770,13 @@ client.on('messageCreate', async (message) => {
                 stop: 'stop', st: 'stop',
                 queue: 'queue', q: 'queue',
                 nowplaying: 'nowplaying', np: 'nowplaying', now: 'nowplaying', current: 'nowplaying',
-                volume: 'volume', vol: 'volume'
+                volume: 'volume', vol: 'volume',
+                shuffle: 'shuffle', random: 'shuffle', mix: 'shuffle',
+                loop: 'loop', repeat: 'loop',
+                search: 'smartsearch', find: 'smartsearch', lookup: 'smartsearch'
             };
 
-            const target = commandMap[first];
+            let target = commandMap[first];
             if (target) {
                 const cmd = client.commands.get(target) ||
                             client.commands.get(client.aliases.get(target));
@@ -798,6 +801,37 @@ client.on('messageCreate', async (message) => {
                         console.error(`Autoplay handler error (${target}):`, err);
                     }
                 }
+            }
+
+            // If not matched directly, try AI interpreter for natural language intents
+            try {
+                const { interpret } = require('./utils/aiMusicInterpreter');
+                const result = await interpret(raw, cfg);
+                if (result && result.action) {
+                    target = result.action;
+                    const args = result.args || [];
+                    const cmd = client.commands.get(target) ||
+                                client.commands.get(client.aliases.get(target));
+                    if (cmd) {
+                        // Basic arg validation for volume & play
+                        if (target === 'play' && args.length === 0) {
+                            await message.reply('❌ Please provide a song name or URL!');
+                            return;
+                        }
+                        if (target === 'volume') {
+                            const val = args[0];
+                            const num = Number(val);
+                            if (!val || Number.isNaN(num)) {
+                                await message.reply('❌ Please provide a valid volume (0-100).');
+                                return;
+                            }
+                        }
+                        await cmd.execute(message, args, client, client.db);
+                        return;
+                    }
+                }
+            } catch (aiErr) {
+                console.error('AI interpreter error:', aiErr);
             }
         }
     } catch (err) {
@@ -1545,6 +1579,51 @@ client.on('interactionCreate', async (interaction) => {
                         content: '❌ An error occurred', 
                         flags: 64 
                     });
+                }
+                return;
+            }
+
+            // ========== SMARTSEARCH PICK HANDLER ==========
+            if (interaction.customId.startsWith('music_pick_')) {
+                try {
+                    const parts = interaction.customId.split('_');
+                    const index = parseInt(parts[2]) - 1; // 1..5
+                    const token = parts.slice(3).join('_');
+                    const cache = client.smartSearchCache?.get(token);
+                    if (!cache) {
+                        return interaction.reply({ content: '❌ Search expired.', flags: 64 });
+                    }
+                    if (!client.playerManager || !client.playerManager.riffy) {
+                        return interaction.reply({ content: '❌ Music system not available.', flags: 64 });
+                    }
+                    const player = client.playerManager.riffy.players.get(interaction.guild.id);
+                    let ensure = player;
+                    // ensure connection
+                    if (!ensure) {
+                        const vc = cache.voiceChannel || interaction.member.voice.channelId;
+                        if (!vc) return interaction.reply({ content: '❌ Join a voice channel first.', flags: 64 });
+                        ensure = client.playerManager.riffy.createConnection({
+                            guildId: interaction.guild.id,
+                            voiceChannel: vc,
+                            textChannel: interaction.channel.id,
+                            deaf: true,
+                            selfDeaf: true
+                        });
+                        try { await ensure.connect(); } catch {}
+                    }
+                    const track = cache.choices[index];
+                    if (!track) return interaction.reply({ content: '❌ Invalid selection.', flags: 64 });
+                    track.info.requester = interaction.user;
+                    ensure.queue.add(track);
+                    if (!ensure.playing && !ensure.paused) {
+                        try { await ensure.play(); } catch {}
+                    }
+                    await interaction.reply({ content: `✅ Added: ${track.info.title}`, flags: 64 });
+                } catch (error) {
+                    console.error('Smartsearch pick error:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: '❌ Failed to add track.', flags: 64 });
+                    }
                 }
                 return;
             }

@@ -29,13 +29,18 @@ module.exports = {
                 return message.channel.send({ embeds: [embed] });
             }
             
-            const volume = parseInt(args[0]);
-            
-            if (isNaN(volume) || volume < 0 || volume > 150) {
-                return message.reply('❌ Please enter a valid volume between 0 and 150!');
+            let volume = parseInt(args[0]);
+            if (isNaN(volume)) {
+                return message.reply('❌ Please enter a numeric volume.');
             }
-            
-            player.setVolume(volume);
+            // Clamp to 0-100 for stability
+            volume = Math.max(0, Math.min(100, volume));
+            try {
+                player.setVolume(volume);
+            } catch (e) {
+                // Some nodes expect 0-150; retry if applicable
+                try { player.setVolume(Math.max(0, Math.min(150, volume))); } catch {}
+            }
             
             const embed = new EmbedBuilder()
                 .setColor('#0061ff')

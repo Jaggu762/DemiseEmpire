@@ -43,6 +43,24 @@
 
 ---
 
+## 🆕 What's New — December 28, 2025
+
+- **No-Prefix Music Channel:** Set a dedicated text channel and type natural commands without the `^` prefix. Configure with `^setmusicchannel #music` then use `play never gonna give you up`, `pause`, `resume`, `skip`, `stop`, `queue`, `nowplaying`, `volume 70`, `shuffle`, `loop`, or `smartsearch` right in that channel.
+- **AI Music Interpreter:** Type natural requests like "play some chill lofi" or "queue edm party mix" — the bot interprets intent, offers top results via Smart Search, and can recommend tracks.
+- **DJ Mode + Profiles:** Enable DJ Mode to auto-recommend songs when the queue ends. Profiles include `gaming`, `chill`, `party`, `focus`, `edm`, `lofi`, and `default`.
+- **Now Playing UI Overhaul:** Cleaner embed with bot icon, large banner image, progress updates, and footer status (volume, loop mode, queue position). Centralized to avoid duplicate messages.
+- **Volume Handling Improved:** Better validation and clamped ranges for reliable volume control.
+- **Help Menus Polished:** Comprehensive general help plus a dedicated music help page. Updated images and clearer navigation.
+- **Stability Fixes:** Resolved duplicate Now Playing messages and corrected queue position display.
+- **Announcement Command Usage:**
+  - `^announce create <#channel> [title] | [description]` — Create an announcement
+  - `^announce setup <#channel>` — Set default announcement channel
+  - `^announce help` — Show announcement help
+
+Tip: Use `^music` or `^help music` for detailed guidance on music features, Smart Search, and DJ Mode.
+
+---
+
 ## 📂 Command Categories
 
 ### 🤖 AI (4)

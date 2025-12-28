@@ -176,6 +176,67 @@ class PlayerManager {
             
             // Optionally send queue end message
             this.sendQueueEndMessage(player);
+
+            // AI DJ mode: auto-recommend tracks if enabled
+            try {
+                const Database = require('./database');
+                const dbInstance = new Database();
+                dbInstance.initialize().then(async (db) => {
+                    const cfg = await db.getGuildConfig(player.guildId);
+                    if (cfg?.dj_mode_enabled) {
+                        const apiClient = require('./apiClient');
+                        const now = player.currentTrack || player.queue.current || null;
+                        const title = now?.info?.title || '';
+                        const author = now?.info?.author || '';
+                        const profile = (cfg.dj_mode_profile || 'default').toLowerCase();
+                        let style = '';
+                        switch (profile) {
+                            case 'gaming':
+                                style = 'high-energy gaming vibes: EDM, dubstep, synthwave, drum & bass, 120-150 BPM, minimal vocals, cinematic drops, suitable for focus during gameplay';
+                                break;
+                            case 'chill':
+                                style = 'chill lofi beats, soft electronic, ambient pop, 70-95 BPM, relaxed and non-distracting';
+                                break;
+                            case 'party':
+                                style = 'popular party hits, dance pop, EDM, strong vocals, feel-good anthems, 110-130 BPM';
+                                break;
+                            case 'focus':
+                                style = 'instrumental focus tracks, ambient electronic, soft piano, minimal vocals; avoid distractions';
+                                break;
+                            case 'edm':
+                                style = 'EDM bangers, progressive house, big room, melodic dubstep, energetic drops';
+                                break;
+                            case 'lofi':
+                                style = 'lofi hip-hop, cozy study beats, mellow textures, vinyl crackle';
+                                break;
+                            default:
+                                style = 'balanced mix of popular, high-quality modern tracks suitable as follow-ups';
+                        }
+                        const prompt = [
+                            `Suggest 5 playable song queries to follow: ${title} by ${author}.`,
+                            `Style: ${style}.`,
+                            'Return ONLY plain lines, one per song, no numbering, no extra text.',
+                            'Prefer results playable on YouTube Music or Spotify.'
+                        ].join('\n');
+                        try {
+                            const response = await apiClient.getAIResponse(prompt, cfg.ai_model || 'deepseek', 'quick');
+                            const lines = String(response || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 5);
+                            for (const q of lines) {
+                                const res = await this.riffy.resolve({ query: q, requester: now?.info?.requester || null });
+                                if (res?.tracks?.[0]) {
+                                    const t = res.tracks[0];
+                                    player.queue.add(t);
+                                }
+                            }
+                            if (!player.playing && player.queue.length) player.play().catch(() => {});
+                        } catch (e) {
+                            console.error('DJ mode recommendation error:', e.message);
+                        }
+                    }
+                }).catch(() => {});
+            } catch (err) {
+                console.error('DJ mode error:', err.message);
+            }
         });
 
         this.riffy.on("playerError", (player, error) => {
@@ -346,20 +407,40 @@ class PlayerManager {
         const currentPosition = player.position || 0;
         const totalDuration = track.info.length || 1;
         const progressBar = this.createProgressBar(currentPosition, totalDuration);
+        const vol = typeof player.volume === 'number' ? player.volume : 100;
+        const loopPretty = (player.loop === 'none' ? 'Off' : (player.loop === 'track' ? 'Single' : 'Queue'));
+        // Compute queue position (1-based) if available
+        let queuePos = null;
+        try {
+            // Check if this is the currently playing track
+            const current = player.queue.current || player.currentTrack;
+            if (current && current.info?.uri === track.info?.uri) {
+                queuePos = 'Now Playing';
+            } else {
+                // Find position in upcoming queue
+                const idx = player.queue.indexOf(track);
+                if (idx >= 0) queuePos = idx + 1;
+            }
+        } catch {}
         
         const embed = new EmbedBuilder()
             .setColor(this.config?.bot?.embedColor || '#0061ff')
+            .setAuthor({ 
+                name: 'DTEmpire V2 Music', 
+                iconURL: this.client.user.displayAvatarURL({ dynamic: true, size: 64 })
+            })
             .setTitle('🎵 Now Playing')
-            .setDescription(`**[${track.info.title}](${track.info.uri})**`)
+            .setURL(track.info.uri)
+            .setDescription(`**[${track.info.title}](${track.info.uri})**\nby ${track.info.author || 'Unknown'}`)
             .addFields(
-                { name: '👤 Artist', value: track.info.author || 'Unknown', inline: true },
                 { name: '🕒 Duration', value: this.formatTime(totalDuration), inline: true },
                 { name: '📤 Requested by', value: track.info.requester?.tag || 'Unknown', inline: true },
+                ...(queuePos ? [{ name: '📚 Queue Position', value: typeof queuePos === 'number' ? `#${queuePos}` : queuePos, inline: true }] : []),
                 { name: '📊 Progress', value: progressBar, inline: false }
             )
-            .setThumbnail(track.info.thumbnail || null)
+            .setImage(track.info.thumbnail || null)
             .setFooter({ 
-                text: `Position: ${this.formatTime(currentPosition)} / ${this.formatTime(totalDuration)} • DTEmpire V2 Music System` 
+                text: `Volume: ${vol}% | Loop: ${loopPretty} | Position: ${this.formatTime(currentPosition)} / ${this.formatTime(totalDuration)}` 
             })
             .setTimestamp();
 

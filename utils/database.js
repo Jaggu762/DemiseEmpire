@@ -262,6 +262,10 @@ class Database {
                 starboard_enabled: false,
                 counting_enabled: false,
                 
+                // ========== MUSIC ENHANCEMENTS ==========
+                dj_mode_enabled: false,
+                dj_mode_profile: 'default',
+                
                 // ========== TICKET SYSTEM ==========
                 ticket_system_enabled: false,
                 ticket_category: null,

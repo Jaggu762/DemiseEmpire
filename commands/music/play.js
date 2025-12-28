@@ -184,42 +184,8 @@ module.exports = {
                 try {
                     await player.play();
                     console.log(`✅ Started playing in guild ${message.guild.id}`);
-                    
-                    // Wait a moment for Riffy to set current track
-                    setTimeout(async () => {
-                        // Send now playing message
-                        let currentTrack = player.queue.current;
-                        
-                        // If still no current track, use first track in queue
-                        if (!currentTrack && player.queue.length > 0) {
-                            currentTrack = player.queue[0];
-                            console.log('[PLAY] Using first track in queue as current:', currentTrack.info.title);
-                        }
-                        
-                        if (currentTrack) {
-                            const nowPlayingEmbed = client.playerManager.createNowPlayingEmbed(currentTrack, player);
-                            
-                            const nowPlayingMessage = await message.channel.send({ 
-                                embeds: [nowPlayingEmbed],
-                                components: [client.playerManager.createMusicButtons()] 
-                            }).catch(err => {
-                                console.error('[PLAY] Error sending now playing message:', err);
-                                return null;
-                            });
-                            
-                            // Store the message for progress updates
-                            if (nowPlayingMessage) {
-                                client.playerManager.nowPlayingMessages.set(message.guild.id, nowPlayingMessage);
-                            }
-                            
-                            // Start progress updates
-                            setTimeout(() => {
-                                if (player && player.playing && currentTrack) {
-                                    client.playerManager.startProgressUpdates(player, currentTrack);
-                                }
-                            }, 1000);
-                        }
-                    }, 500);
+                    // Note: The trackStart event in playerManager will send the Now Playing message
+                    // No need to send it here to avoid duplicates
                     
                 } catch (playError) {
                     console.error('[PLAY] Play error:', playError);
@@ -230,33 +196,8 @@ module.exports = {
                 console.log(`[PLAY] Queue length: ${player.queue.length}`);
                 console.log(`[PLAY] Current track: ${player.queue.current?.info?.title || 'None'}`);
                 
-                // If we added tracks and player is already playing, show queue info
-                if (addedCount > 0) {
-                    const queueLength = player.queue.length;
-                    
-                    // Try to get current playing track
-                    let playingTrack = player.queue.current;
-                    if (!playingTrack && player.queue.length > 0) {
-                        playingTrack = player.queue[0];
-                    }
-                    
-                    if (playingTrack) {
-                        const statusEmbed = new EmbedBuilder()
-                            .setColor('#0061ff')
-                            .setTitle('🎵 Player Status')
-                            .setDescription(`Player is currently ${player.paused ? 'paused' : 'playing'}`)
-                            .addFields(
-                                { name: 'Now Playing', value: `**${playingTrack.info.title}**`, inline: false },
-                                { name: 'Queue Length', value: `${queueLength} tracks`, inline: true },
-                                { name: 'Tracks Added', value: `${addedCount} songs`, inline: true },
-                                { name: 'Position Added', value: `#${queueLength - addedCount + 1} to #${queueLength}`, inline: true }
-                            )
-                            .setFooter({ text: 'Use .queue to see all songs | .nowplaying for current track' })
-                            .setTimestamp();
-                        
-                        await message.channel.send({ embeds: [statusEmbed] });
-                    }
-                }
+                // Player already playing - don't send duplicate now playing message
+                // The existing now playing message will update automatically via progress tracker
             }
 
         } catch (error) {
