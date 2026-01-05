@@ -273,7 +273,17 @@ function calculateLevelFromXP(xp) {
 // ========== INVITE TRACKING FUNCTIONS ==========
 async function initializeInviteTracking(guild) {
     try {
-        if (!guild || !guild.me.permissions.has(PermissionFlagsBits.ManageGuild)) return;
+        if (!guild) return;
+        
+        // Ensure guild.me is available
+        if (!guild.members.me) {
+            await guild.members.fetch(client.user.id).catch(() => null);
+        }
+        
+        // Check if bot has permission
+        if (!guild.members.me || !guild.members.me.permissions.has(PermissionFlagsBits.ManageGuild)) {
+            return;
+        }
         
         const invites = await guild.invites.fetch();
         const inviteMap = new Map();
@@ -1356,6 +1366,299 @@ client.on('interactionCreate', async (interaction) => {
                     }
                 } catch (error) {
                     console.error('Level button handler error:', error);
+                }
+                return;
+            }
+
+            // ========== SUGGESTION BUTTON HANDLER ==========
+            if (interaction.customId.startsWith('suggest_')) {
+                try {
+                    const suggestionId = interaction.customId.split('_').slice(0, 3).join('_');
+                    const action = interaction.customId.split('_').pop();
+                    
+                    if (!client.suggestions) client.suggestions = new Map();
+                    if (!client.db.data.suggestions) client.db.data.suggestions = {};
+                    
+                    // Load suggestion from database if not in memory
+                    let suggestion = client.suggestions.get(suggestionId);
+                    if (!suggestion && client.db.data.suggestions[suggestionId]) {
+                        suggestion = client.db.data.suggestions[suggestionId];
+                        client.suggestions.set(suggestionId, suggestion);
+                    }
+                    
+                    if (!suggestion) {
+                        return interaction.reply({ content: '❌ Suggestion data not found!', ephemeral: true });
+                    }
+                    
+                    // Handle voting
+                    if (action === 'upvote' || action === 'downvote') {
+                        const userId = interaction.user.id;
+                        const hasUpvoted = suggestion.upvotes.includes(userId);
+                        const hasDownvoted = suggestion.downvotes.includes(userId);
+                        
+                        if (action === 'upvote') {
+                            if (hasUpvoted) {
+                                suggestion.upvotes = suggestion.upvotes.filter(id => id !== userId);
+                                await interaction.reply({ content: '👍 Upvote removed!', ephemeral: true });
+                            } else {
+                                if (hasDownvoted) {
+                                    suggestion.downvotes = suggestion.downvotes.filter(id => id !== userId);
+                                }
+                                suggestion.upvotes.push(userId);
+                                await interaction.reply({ content: '👍 Upvoted!', ephemeral: true });
+                            }
+                        } else if (action === 'downvote') {
+                            if (hasDownvoted) {
+                                suggestion.downvotes = suggestion.downvotes.filter(id => id !== userId);
+                                await interaction.reply({ content: '👎 Downvote removed!', ephemeral: true });
+                            } else {
+                                if (hasUpvoted) {
+                                    suggestion.upvotes = suggestion.upvotes.filter(id => id !== userId);
+                                }
+                                suggestion.downvotes.push(userId);
+                                await interaction.reply({ content: '👎 Downvoted!', ephemeral: true });
+                            }
+                        }
+                        
+                        // Update storage
+                        client.suggestions.set(suggestionId, suggestion);
+                        client.db.data.suggestions[suggestionId] = suggestion;
+                        client.db.save();
+                        
+                        // Update embed
+                        const statusEmojis = { 'pending': '🟡', 'approved': '✅', 'denied': '❌', 'considering': '🤔' };
+                        const statusNames = { 'pending': 'Pending', 'approved': 'Approved', 'denied': 'Denied', 'considering': 'Under Consideration' };
+                        const statusColors = { 'pending': '#ffaa00', 'approved': '#00ff00', 'denied': '#ff0000', 'considering': '#0099ff' };
+                        
+                        const upvoteCount = suggestion.upvotes.length;
+                        const downvoteCount = suggestion.downvotes.length;
+                        const totalVotes = upvoteCount + downvoteCount;
+                        const ratio = totalVotes > 0 ? Math.round((upvoteCount / totalVotes) * 100) : 0;
+                        
+                        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                            .setColor(statusColors[suggestion.status])
+                            .setFields(
+                                { name: '👍 Upvotes', value: `${upvoteCount}`, inline: true },
+                                { name: '👎 Downvotes', value: `${downvoteCount}`, inline: true },
+                                { name: '📊 Status', value: `${statusEmojis[suggestion.status]} ${statusNames[suggestion.status]}`, inline: true },
+                                { name: '📈 Approval Rating', value: `${ratio}%`, inline: true },
+                                { name: '🗳️ Total Votes', value: `${totalVotes}`, inline: true }
+                            );
+                        
+                        if (suggestion.reviewedBy) {
+                            updatedEmbed.addFields({ name: '👤 Reviewed By', value: `<@${suggestion.reviewedBy}>`, inline: true });
+                        }
+                        
+                        await interaction.message.edit({ embeds: [updatedEmbed] });
+                    } 
+                    // Handle staff actions
+                    else if (action === 'approve' || action === 'deny' || action === 'consider') {
+                        if (!interaction.member.permissions.has('ManageMessages')) {
+                            return interaction.reply({ content: '❌ You need Manage Messages permission to manage suggestions!', ephemeral: true });
+                        }
+                        
+                        if (action === 'approve') {
+                            suggestion.status = 'approved';
+                            await interaction.reply({ content: '✅ Suggestion approved!', ephemeral: true });
+                        } else if (action === 'deny') {
+                            suggestion.status = 'denied';
+                            await interaction.reply({ content: '❌ Suggestion denied!', ephemeral: true });
+                        } else if (action === 'consider') {
+                            suggestion.status = 'considering';
+                            await interaction.reply({ content: '🤔 Suggestion marked as under consideration!', ephemeral: true });
+                        }
+                        
+                        suggestion.reviewedBy = interaction.user.id;
+                        suggestion.reviewedAt = Date.now();
+                        
+                        client.suggestions.set(suggestionId, suggestion);
+                        client.db.data.suggestions[suggestionId] = suggestion;
+                        client.db.save();
+                        
+                        // Update embed
+                        const statusEmojis = { 'pending': '🟡', 'approved': '✅', 'denied': '❌', 'considering': '🤔' };
+                        const statusNames = { 'pending': 'Pending', 'approved': 'Approved', 'denied': 'Denied', 'considering': 'Under Consideration' };
+                        const statusColors = { 'pending': '#ffaa00', 'approved': '#00ff00', 'denied': '#ff0000', 'considering': '#0099ff' };
+                        
+                        const upvoteCount = suggestion.upvotes.length;
+                        const downvoteCount = suggestion.downvotes.length;
+                        const totalVotes = upvoteCount + downvoteCount;
+                        const ratio = totalVotes > 0 ? Math.round((upvoteCount / totalVotes) * 100) : 0;
+                        
+                        const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                            .setColor(statusColors[suggestion.status])
+                            .setFields(
+                                { name: '👍 Upvotes', value: `${upvoteCount}`, inline: true },
+                                { name: '👎 Downvotes', value: `${downvoteCount}`, inline: true },
+                                { name: '📊 Status', value: `${statusEmojis[suggestion.status]} ${statusNames[suggestion.status]}`, inline: true },
+                                { name: '📈 Approval Rating', value: `${ratio}%`, inline: true },
+                                { name: '🗳️ Total Votes', value: `${totalVotes}`, inline: true },
+                                { name: '👤 Reviewed By', value: `<@${suggestion.reviewedBy}>`, inline: true }
+                            );
+                        
+                        await interaction.message.edit({ embeds: [updatedEmbed] });
+                        
+                        // Notify suggestion author
+                        try {
+                            const author = await client.users.fetch(suggestion.userId);
+                            const notifyEmbed = new EmbedBuilder()
+                                .setColor(action === 'approve' ? '#00ff00' : action === 'deny' ? '#ff0000' : '#ffaa00')
+                                .setTitle(`Suggestion ${action === 'approve' ? 'Approved' : action === 'deny' ? 'Denied' : 'Under Consideration'}!`)
+                                .setDescription(`Your suggestion in **${interaction.guild.name}** has been ${action === 'approve' ? 'approved' : action === 'deny' ? 'denied' : 'marked as under consideration'}!`)
+                                .addFields({ name: 'Your Suggestion', value: suggestion.suggestion.substring(0, 200) + (suggestion.suggestion.length > 200 ? '...' : ''), inline: false });
+                            
+                            await author.send({ embeds: [notifyEmbed] });
+                        } catch (error) {
+                            // User has DMs disabled
+                        }
+                    }
+                } catch (error) {
+                    console.error('Suggestion button handler error:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: '❌ An error occurred processing your vote.', ephemeral: true }).catch(() => {});
+                    }
+                }
+                return;
+            }
+
+            // ========== POLL BUTTON HANDLER ==========
+            if (interaction.customId.startsWith('poll_')) {
+                try {
+                    const parts = interaction.customId.split('_');
+                    const pollId = `poll_${parts[1]}_${parts[2]}`;
+                    const action = parts[3];
+                    
+                    if (!client.polls) client.polls = new Map();
+                    if (!client.db.data.polls) client.db.data.polls = {};
+                    
+                    // Load poll from database if not in memory
+                    let poll = client.polls.get(pollId);
+                    if (!poll && client.db.data.polls[pollId]) {
+                        poll = client.db.data.polls[pollId];
+                        poll.voters = new Set(poll.voters || []);
+                        client.polls.set(pollId, poll);
+                    }
+                    
+                    if (!poll) {
+                        return interaction.reply({ content: '❌ Poll data not found!', ephemeral: true });
+                    }
+                    
+                    // Check if user wants to end poll
+                    if (action === 'end') {
+                        if (interaction.user.id !== poll.createdBy && !interaction.member.permissions.has('ManageMessages')) {
+                            return interaction.reply({ content: '❌ Only the poll creator or moderators can end this poll!', ephemeral: true });
+                        }
+                        
+                        // Acknowledge interaction first
+                        await interaction.deferUpdate();
+                        
+                        // End poll
+                        const totalVotes = Object.values(poll.votes).reduce((a, b) => a + b, 0);
+                        const sortedOptions = poll.options
+                            .map((opt, i) => ({ option: opt, votes: poll.votes[i], index: i }))
+                            .sort((a, b) => b.votes - a.votes);
+                        
+                        const winner = sortedOptions[0];
+                        
+                        const finalEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                            .setColor('#ff0000')
+                            .setTitle('📊 Poll Ended')
+                            .setFooter({ text: `Poll ended • ${totalVotes} total votes` });
+                        
+                        if (totalVotes > 0) {
+                            finalEmbed.addFields({
+                                name: '🏆 Winner',
+                                value: `**${winner.option}** with ${winner.votes} votes (${Math.round((winner.votes / totalVotes) * 100)}%)`,
+                                inline: false
+                            });
+                        }
+                        
+                        const disabledRows = interaction.message.components.map(row => {
+                            const newRow = ActionRowBuilder.from(row);
+                            newRow.components.forEach(button => button.setDisabled(true));
+                            return newRow;
+                        });
+                        
+                        await interaction.message.edit({ embeds: [finalEmbed], components: disabledRows });
+                        
+                        client.polls.delete(pollId);
+                        return;
+                    }
+                    
+                    const optionIndex = parseInt(action);
+                    
+                    // Check if user already voted
+                    if (poll.voters.has(interaction.user.id)) {
+                        return interaction.reply({ content: '❌ You have already voted in this poll!', ephemeral: true });
+                    }
+                    
+                    // Acknowledge and reply
+                    await interaction.deferReply({ ephemeral: true });
+                    
+                    // Record vote
+                    poll.votes[optionIndex]++;
+                    poll.voters.add(interaction.user.id);
+                    
+                    client.polls.set(pollId, poll);
+                    client.db.data.polls[pollId] = { ...poll, voters: Array.from(poll.voters) };
+                    client.db.save();
+                    
+                    // Update embed
+                    const totalVotes = Object.values(poll.votes).reduce((a, b) => a + b, 0);
+                    const updatedDescription = `**${poll.question}**\n\n${poll.options.map((opt, i) => {
+                        const votes = poll.votes[i];
+                        const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                        const barLength = Math.floor(percentage / 5);
+                        const bar = '█'.repeat(barLength) + '░'.repeat(20 - barLength);
+                        return `**${i + 1}.** ${opt}\n${bar} ${votes} votes (${percentage}%)`;
+                    }).join('\n\n')}`;
+                    
+                    const updatedEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                        .setDescription(updatedDescription)
+                        .setFooter({ text: `Poll by ${poll.options.length} • ${totalVotes} total votes` });
+                    
+                    await interaction.message.edit({ embeds: [updatedEmbed] });
+                    await interaction.editReply({ content: `✅ Your vote for **${poll.options[optionIndex]}** has been recorded!` });
+                    
+                } catch (error) {
+                    console.error('Poll button handler error:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({ content: '❌ An error occurred processing your vote.', ephemeral: true }).catch(() => {});
+                    }
+                }
+                return;
+            }
+
+            // ========== REACTION ROLE BUTTON HANDLER ==========
+            if (interaction.customId.startsWith('rr_')) {
+                try {
+                    if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+                        return interaction.reply({ content: '❌ I need Manage Roles to toggle that.', ephemeral: true });
+                    }
+
+                    const roleId = interaction.customId.replace('rr_', '');
+                    const role = interaction.guild.roles.cache.get(roleId);
+                    
+                    if (!role) {
+                        return interaction.reply({ content: '❌ Role not found!', ephemeral: true });
+                    }
+
+                    if (role.position >= interaction.guild.members.me.roles.highest.position) {
+                        return interaction.reply({ content: '❌ That role is higher than my top role.', ephemeral: true });
+                    }
+                    
+                    const member = interaction.member;
+                    
+                    if (member.roles.cache.has(roleId)) {
+                        await member.roles.remove(role);
+                        await interaction.reply({ content: `✅ Removed the **${role.name}** role!`, ephemeral: true });
+                    } else {
+                        await member.roles.add(role);
+                        await interaction.reply({ content: `✅ Added the **${role.name}** role!`, ephemeral: true });
+                    }
+                } catch (error) {
+                    console.error('Reaction role button handler error:', error);
+                    await interaction.reply({ content: `❌ Failed to manage role: ${error.message}`, ephemeral: true }).catch(() => {});
                 }
                 return;
             }

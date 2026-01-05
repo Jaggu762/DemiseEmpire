@@ -17,7 +17,10 @@ class Database {
             stickyMessages: {}, // Added for sticky messages
             tickets: {}, // Added for ticket system
             ticketSystems: {}, // Added for ticket system configurations
-            ticketLogs: {} // Added for ticket logs
+            ticketLogs: {}, // Added for ticket logs
+            birthdays: {}, // Added for birthday system
+            polls: {}, // Added for poll system
+            suggestions: {} // Added for suggestion system
         };
         this.dbPath = path.join(__dirname, '..', 'data', 'database.json');
     }
@@ -173,6 +176,7 @@ class Database {
                 starboard_channel: null,
                 media_only_channel: null,
                 slowmode_channel: null,
+                birthday_channel: null,
                 
                 // ========== ROLE CONFIGURATIONS ==========
                 auto_role: null,
@@ -1404,6 +1408,70 @@ class Database {
         
         return userTickets;
     }
+
+    // ========== BIRTHDAY METHODS ==========
+    async getUserBirthday(userId, guildId) {
+        const key = `${userId}_${guildId}`;
+        if (!this.data.birthdays) this.data.birthdays = {};
+        return this.data.birthdays[key] || null;
+    }
+
+    async setUserBirthday(userId, guildId, birthdayData) {
+        const key = `${userId}_${guildId}`;
+        if (!this.data.birthdays) this.data.birthdays = {};
+        
+        this.data.birthdays[key] = {
+            userId: userId,
+            guildId: guildId,
+            ...birthdayData
+        };
+        this.save();
+        return this.data.birthdays[key];
+    }
+
+    async removeUserBirthday(userId, guildId) {
+        const key = `${userId}_${guildId}`;
+        if (!this.data.birthdays) return false;
+        
+        if (this.data.birthdays[key]) {
+            delete this.data.birthdays[key];
+            this.save();
+            return true;
+        }
+        return false;
+    }
+
+    async getAllBirthdays(guildId) {
+        if (!this.data.birthdays) return [];
+        
+        const birthdays = [];
+        for (const key in this.data.birthdays) {
+            const bday = this.data.birthdays[key];
+            if (bday.guildId === guildId) {
+                birthdays.push(bday);
+            }
+        }
+        return birthdays;
+    }
+
+    async getTodayBirthdays(guildId) {
+        if (!this.data.birthdays) return [];
+        
+        const now = new Date();
+        const today = {
+            day: now.getDate(),
+            month: now.getMonth() + 1
+        };
+        
+        const birthdays = [];
+        for (const key in this.data.birthdays) {
+            const bday = this.data.birthdays[key];
+            if (bday.guildId === guildId && bday.day === today.day && bday.month === today.month) {
+                birthdays.push(bday);
+            }
+        }
+        return birthdays;
+    }
 }
 
 // ========== HELPER FUNCTIONS ==========
@@ -1448,4 +1516,5 @@ function getDefaultButtonColor(systemType) {
     return colors[systemType] || '#0099ff';
 }
 
+// Export the Database class
 module.exports = Database;

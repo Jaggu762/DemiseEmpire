@@ -1198,6 +1198,448 @@ async function showHelp(message) {
     await message.reply({ embeds: [embed] });
 }
 
+// ========== NEW ECONOMY FEATURES ==========
+
+async function stealMoney(message, client, db) {
+    const targetUser = message.mentions.users.first();
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    
+    if (!targetUser) {
+        return message.reply('❌ Usage: `^economy steal @user`\nExample: `^economy steal @John`');
+    }
+    
+    if (targetUser.id === userId) {
+        return message.reply('❌ You can\'t steal from yourself!');
+    }
+    
+    if (targetUser.bot) {
+        return message.reply('❌ You can\'t steal from bots!');
+    }
+    
+    // Check cooldown (1 hour)
+    if (!client.cooldowns) client.cooldowns = new Map();
+    if (!client.cooldowns.has('steal')) client.cooldowns.set('steal', new Map());
+    
+    const now = Date.now();
+    const cooldownAmount = 60 * 60 * 1000; // 1 hour
+    const timestamps = client.cooldowns.get('steal');
+    
+    if (timestamps.has(userId)) {
+        const expirationTime = timestamps.get(userId) + cooldownAmount;
+        
+        if (now < expirationTime) {
+            const timeLeft = expirationTime - now;
+            const minutes = Math.floor(timeLeft / (60 * 1000));
+            return message.reply(`⏰ You can steal again in ${minutes} minutes.`);
+        }
+    }
+    
+    // Get both users' economy
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    const targetEconomy = await db.getUserEconomy(targetUser.id, guildId);
+    
+    if (targetEconomy.wallet < 100) {
+        return message.reply('❌ This user doesn\'t have enough money in their wallet to steal from!');
+    }
+    
+    // 50% success rate
+    const success = Math.random() < 0.5;
+    
+    if (success) {
+        // Steal between 10% and 30% of target's wallet
+        const stealPercentage = Math.random() * 0.2 + 0.1; // 10% to 30%
+        const stolenAmount = Math.floor(targetEconomy.wallet * stealPercentage);
+        
+        // Update both economies
+        userEconomy.wallet += stolenAmount;
+        targetEconomy.wallet -= stolenAmount;
+        
+        await db.updateUserEconomy(userId, guildId, userEconomy);
+        await db.updateUserEconomy(targetUser.id, guildId, targetEconomy);
+        
+        // Log transactions
+        await db.addTransaction(userId, guildId, 'steal_success', stolenAmount, { target: targetUser.id });
+        await db.addTransaction(targetUser.id, guildId, 'stolen_from', -stolenAmount, { thief: userId });
+        
+        // Set cooldown
+        timestamps.set(userId, now);
+        
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('💰 Steal Successful!')
+            .setDescription(`You successfully stole from ${targetUser.username}!`)
+            .addFields(
+                { name: '💵 Amount Stolen', value: `$${stolenAmount.toLocaleString()}`, inline: true },
+                { name: '💼 Your New Balance', value: `$${userEconomy.wallet.toLocaleString()}`, inline: true },
+                { name: '⏰ Next Steal', value: '1 hour', inline: true }
+            )
+            .setFooter({ text: 'Crime doesn\'t always pay!' });
+        
+        await message.reply({ embeds: [embed] });
+        
+        // Notify victim
+        try {
+            const victimEmbed = new EmbedBuilder()
+                .setColor('#ff0000')
+                .setTitle('🚨 You\'ve Been Robbed!')
+                .setDescription(`${message.author.username} stole $${stolenAmount.toLocaleString()} from you in ${message.guild.name}!`)
+                .addFields(
+                    { name: '💼 Your New Balance', value: `$${targetEconomy.wallet.toLocaleString()}`, inline: true }
+                );
+            
+            await targetUser.send({ embeds: [victimEmbed] });
+        } catch (error) {
+            // User has DMs disabled
+        }
+    } else {
+        // Failed - lose money as fine
+        const fineAmount = Math.floor(userEconomy.wallet * 0.1); // 10% fine
+        
+        if (fineAmount > 0) {
+            userEconomy.wallet -= fineAmount;
+            await db.updateUserEconomy(userId, guildId, userEconomy);
+            
+            // Log transaction
+            await db.addTransaction(userId, guildId, 'steal_failed', -fineAmount);
+        }
+        
+        // Set cooldown
+        timestamps.set(userId, now);
+        
+        const embed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('🚨 Steal Failed!')
+            .setDescription('You got caught trying to steal!')
+            .addFields(
+                { name: '⚖️ Fine', value: `$${fineAmount.toLocaleString()}`, inline: true },
+                { name: '💼 Your Balance', value: `$${userEconomy.wallet.toLocaleString()}`, inline: true },
+                { name: '⏰ Next Attempt', value: '1 hour', inline: true }
+            )
+            .setFooter({ text: 'Better luck next time!' });
+        
+        await message.reply({ embeds: [embed] });
+    }
+}
+
+async function payMoney(message, args, client, db) {
+    const targetUser = message.mentions.users.first();
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    
+    if (!targetUser) {
+        return message.reply('❌ Usage: `^economy pay @user <amount>`\nExample: `^economy pay @John 1000`');
+    }
+    
+    if (targetUser.id === userId) {
+        return message.reply('❌ You can\'t pay yourself!');
+    }
+    
+    if (targetUser.bot) {
+        return message.reply('❌ You can\'t pay bots!');
+    }
+    
+    const amount = parseInt(args[1]);
+    if (isNaN(amount) || amount <= 0) {
+        return message.reply('❌ Please specify a valid amount to pay.');
+    }
+    
+    // Get both users' economy
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    const targetEconomy = await db.getUserEconomy(targetUser.id, guildId);
+    
+    if (userEconomy.wallet < amount) {
+        return message.reply(`❌ You don't have enough money! You have $${userEconomy.wallet.toLocaleString()}.`);
+    }
+    
+    // Transfer money
+    userEconomy.wallet -= amount;
+    targetEconomy.wallet += amount;
+    
+    await db.updateUserEconomy(userId, guildId, userEconomy);
+    await db.updateUserEconomy(targetUser.id, guildId, targetEconomy);
+    
+    // Log transactions
+    await db.addTransaction(userId, guildId, 'pay_sent', -amount, { recipient: targetUser.id });
+    await db.addTransaction(targetUser.id, guildId, 'pay_received', amount, { sender: userId });
+    
+    const embed = new EmbedBuilder()
+        .setColor('#00ff00')
+        .setTitle('💸 Payment Sent!')
+        .setDescription(`You sent money to ${targetUser.username}`)
+        .addFields(
+            { name: '💵 Amount', value: `$${amount.toLocaleString()}`, inline: true },
+            { name: '💼 Your New Balance', value: `$${userEconomy.wallet.toLocaleString()}`, inline: true },
+            { name: '📤 Recipient', value: targetUser.username, inline: true }
+        );
+    
+    await message.reply({ embeds: [embed] });
+    
+    // Notify recipient
+    try {
+        const recipientEmbed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('💰 Payment Received!')
+            .setDescription(`${message.author.username} sent you $${amount.toLocaleString()} in ${message.guild.name}!`)
+            .addFields(
+                { name: '💼 Your New Balance', value: `$${targetEconomy.wallet.toLocaleString()}`, inline: true }
+            );
+        
+        await targetUser.send({ embeds: [recipientEmbed] });
+    } catch (error) {
+        // User has DMs disabled
+    }
+}
+
+async function horseRace(message, args, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    
+    if (args.length === 0) {
+        return message.reply('❌ Usage: `^economy race <amount>`\nExample: `^economy race 500`\n\nBet on horse racing! Win 3x your bet!');
+    }
+    
+    const betAmount = parseInt(args[0]);
+    if (isNaN(betAmount) || betAmount <= 0) {
+        return message.reply('❌ Please specify a valid bet amount.');
+    }
+    
+    if (betAmount < 100) {
+        return message.reply('❌ Minimum bet is $100.');
+    }
+    
+    const economy = await db.getUserEconomy(userId, guildId);
+    
+    if (economy.wallet < betAmount) {
+        return message.reply(`❌ You don't have enough money! You have $${economy.wallet.toLocaleString()}.`);
+    }
+    
+    // Horse names
+    const horses = ['⚡ Lightning', '🔥 Blaze', '💨 Thunder', '🌟 Star', '👑 Champion'];
+    
+    // Create race embed
+    const raceEmbed = new EmbedBuilder()
+        .setColor('#ffa500')
+        .setTitle('🐎 Horse Race Starting!')
+        .setDescription(`Your bet: $${betAmount.toLocaleString()}\n\nHorses:\n${horses.map((h, i) => `${i + 1}. ${h}`).join('\n')}\n\n🏁 Race in progress...`)
+        .setFooter({ text: 'Good luck!' });
+    
+    const raceMessage = await message.reply({ embeds: [raceEmbed] });
+    
+    // Simulate race (2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Random winner
+    const winnerIndex = Math.floor(Math.random() * horses.length);
+    const yourHorse = Math.floor(Math.random() * horses.length);
+    const won = yourHorse === winnerIndex;
+    
+    if (won) {
+        const winAmount = betAmount * 3;
+        economy.wallet += winAmount - betAmount; // Net profit is 2x bet
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'race_win', winAmount - betAmount, { bet: betAmount });
+        
+        const winEmbed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('🏆 You Won!')
+            .setDescription(`**Winner:** ${horses[winnerIndex]}\n**Your Horse:** ${horses[yourHorse]}\n\n🎉 Congratulations!`)
+            .addFields(
+                { name: '💰 Bet Amount', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '🏆 Winnings', value: `$${winAmount.toLocaleString()}`, inline: true },
+                { name: '📈 Profit', value: `$${(winAmount - betAmount).toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: false }
+            );
+        
+        await raceMessage.edit({ embeds: [winEmbed] });
+    } else {
+        economy.wallet -= betAmount;
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'race_loss', -betAmount);
+        
+        const loseEmbed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('😔 You Lost!')
+            .setDescription(`**Winner:** ${horses[winnerIndex]}\n**Your Horse:** ${horses[yourHorse]}\n\nBetter luck next time!`)
+            .addFields(
+                { name: '💸 Lost', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: true }
+            );
+        
+        await raceMessage.edit({ embeds: [loseEmbed] });
+    }
+}
+
+async function footballBet(message, args, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    
+    if (args.length < 2) {
+        return message.reply('❌ Usage: `^economy football <amount> <red/blue>`\nExample: `^economy football 1000 red`\n\nBet on team matches! Win 2x your bet!');
+    }
+    
+    const betAmount = parseInt(args[0]);
+    const team = args[1].toLowerCase();
+    
+    if (isNaN(betAmount) || betAmount <= 0) {
+        return message.reply('❌ Please specify a valid bet amount.');
+    }
+    
+    if (betAmount < 100) {
+        return message.reply('❌ Minimum bet is $100.');
+    }
+    
+    if (team !== 'red' && team !== 'blue') {
+        return message.reply('❌ Please choose either `red` or `blue` team.');
+    }
+    
+    const economy = await db.getUserEconomy(userId, guildId);
+    
+    if (economy.wallet < betAmount) {
+        return message.reply(`❌ You don't have enough money! You have $${economy.wallet.toLocaleString()}.`);
+    }
+    
+    // Create match embed
+    const matchEmbed = new EmbedBuilder()
+        .setColor('#ffa500')
+        .setTitle('⚽ Football Match Starting!')
+        .setDescription(`Your bet: $${betAmount.toLocaleString()} on **${team.toUpperCase()} TEAM**\n\n🔴 **Red Team** vs 🔵 **Blue Team**\n\n⚽ Match in progress...`)
+        .setFooter({ text: 'Good luck!' });
+    
+    const matchMessage = await message.reply({ embeds: [matchEmbed] });
+    
+    // Simulate match (3 seconds)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Random winner (50/50)
+    const winner = Math.random() < 0.5 ? 'red' : 'blue';
+    const won = team === winner;
+    
+    // Random scores
+    const redScore = Math.floor(Math.random() * 4) + (winner === 'red' ? 1 : 0);
+    const blueScore = Math.floor(Math.random() * 4) + (winner === 'blue' ? 1 : 0);
+    
+    // Make sure winner has higher score
+    const finalRedScore = winner === 'red' ? Math.max(redScore, blueScore + 1) : redScore;
+    const finalBlueScore = winner === 'blue' ? Math.max(blueScore, redScore + 1) : blueScore;
+    
+    if (won) {
+        const winAmount = betAmount * 2;
+        economy.wallet += winAmount - betAmount; // Net profit is 1x bet
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'football_win', winAmount - betAmount, { bet: betAmount, team: team });
+        
+        const winEmbed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('🏆 Your Team Won!')
+            .setDescription(`**Final Score:**\n🔴 Red Team: ${finalRedScore}\n🔵 Blue Team: ${finalBlueScore}\n\n🎉 ${team.toUpperCase()} TEAM WINS!`)
+            .addFields(
+                { name: '💰 Bet Amount', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '🏆 Winnings', value: `$${winAmount.toLocaleString()}`, inline: true },
+                { name: '📈 Profit', value: `$${(winAmount - betAmount).toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: false }
+            );
+        
+        await matchMessage.edit({ embeds: [winEmbed] });
+    } else {
+        economy.wallet -= betAmount;
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'football_loss', -betAmount, { team: team });
+        
+        const loseEmbed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('😔 Your Team Lost!')
+            .setDescription(`**Final Score:**\n🔴 Red Team: ${finalRedScore}\n🔵 Blue Team: ${finalBlueScore}\n\n${winner.toUpperCase()} TEAM WINS!\n\nBetter luck next time!`)
+            .addFields(
+                { name: '💸 Lost', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: true }
+            );
+        
+        await matchMessage.edit({ embeds: [loseEmbed] });
+    }
+}
+
+async function gambleMoney(message, args, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    
+    if (args.length === 0) {
+        return message.reply('❌ Usage: `^economy gamble <amount>`\nExample: `^economy gamble 1000`\n\nTest your luck! Win 2x your bet or lose it all!');
+    }
+    
+    const betAmount = parseInt(args[0]);
+    if (isNaN(betAmount) || betAmount <= 0) {
+        return message.reply('❌ Please specify a valid bet amount.');
+    }
+    
+    if (betAmount < 50) {
+        return message.reply('❌ Minimum bet is $50.');
+    }
+    
+    const economy = await db.getUserEconomy(userId, guildId);
+    
+    if (economy.wallet < betAmount) {
+        return message.reply(`❌ You don't have enough money! You have $${economy.wallet.toLocaleString()}.`);
+    }
+    
+    // Create gamble embed
+    const gambleEmbed = new EmbedBuilder()
+        .setColor('#ffa500')
+        .setTitle('🎰 Rolling the dice...')
+        .setDescription(`Bet: $${betAmount.toLocaleString()}\n\n🎲 Testing your luck...`)
+        .setFooter({ text: '50/50 chance!' });
+    
+    const gambleMessage = await message.reply({ embeds: [gambleEmbed] });
+    
+    // Wait for suspense (2 seconds)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 50% chance to win
+    const won = Math.random() < 0.5;
+    
+    if (won) {
+        const winAmount = betAmount * 2;
+        economy.wallet += winAmount - betAmount; // Net profit is 1x bet
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'gamble_win', winAmount - betAmount, { bet: betAmount });
+        
+        const winEmbed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('🎉 You Won!')
+            .setDescription('Lady Luck is on your side!')
+            .addFields(
+                { name: '💰 Bet Amount', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '🏆 Winnings', value: `$${winAmount.toLocaleString()}`, inline: true },
+                { name: '📈 Profit', value: `$${(winAmount - betAmount).toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: false }
+            );
+        
+        await gambleMessage.edit({ embeds: [winEmbed] });
+    } else {
+        economy.wallet -= betAmount;
+        
+        await db.updateUserEconomy(userId, guildId, economy);
+        await db.addTransaction(userId, guildId, 'gamble_loss', -betAmount);
+        
+        const loseEmbed = new EmbedBuilder()
+            .setColor('#ff0000')
+            .setTitle('😔 You Lost!')
+            .setDescription('Better luck next time!')
+            .addFields(
+                { name: '💸 Lost', value: `$${betAmount.toLocaleString()}`, inline: true },
+                { name: '💼 New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: true }
+            )
+            .setFooter({ text: 'Don\'t gamble more than you can afford to lose!' });
+        
+        await gambleMessage.edit({ embeds: [loseEmbed] });
+    }
+}
+
 // ========== EXPORTS FOR BUTTON HANDLERS ==========
 module.exports.workJob = workJob;
 module.exports.showProperties = showProperties;
