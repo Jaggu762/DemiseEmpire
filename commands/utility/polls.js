@@ -121,7 +121,8 @@ async function createPoll(message, args, client) {
     
     // Set up vote collector
     const filter = i => i.customId.startsWith('poll_vote_');
-    const collector = pollMessage.createMessageComponentCollector({ filter, time: duration * 60 * 1000 });
+    const timeoutMs = Math.min(duration * 60 * 1000, 2147483647); // Cap at max 32-bit integer
+    const collector = pollMessage.createMessageComponentCollector({ filter, time: timeoutMs });
     
     collector.on('collect', async i => {
         const optionIndex = parseInt(i.customId.split('_')[2]);
