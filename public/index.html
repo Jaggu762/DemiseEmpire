@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DT Empire AI</title>
+  <style>
+    :root { --bg:#0c0f13; --panel:#12161d; --text:#e6edf3; --muted:#aeb6c2; --accent:#4cc2ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; background: var(--bg); color: var(--text); }
+    header { padding: 24px; text-align: center; border-bottom: 1px solid #1c2230; }
+    header h1 { margin: 0; font-size: 1.5rem; }
+    header p { margin: 6px 0 0; color: var(--muted); }
+    main { max-width: 780px; margin: 24px auto; padding: 0 16px 24px; }
+    .card { background: var(--panel); border: 1px solid #1c2230; border-radius: 12px; padding: 16px; }
+    .row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; }
+    textarea { width: 100%; min-height: 120px; resize: vertical; background: #0f1319; color: var(--text); border: 1px solid #1c2230; border-radius: 8px; padding: 12px; }
+    select, input[type="text"], button { background: #0f1319; color: var(--text); border: 1px solid #1c2230; border-radius: 8px; padding: 10px 12px; }
+    button { cursor: pointer; background: var(--accent); color: #001018; border: none; font-weight: 600; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .meta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
+    .response { margin-top: 16px; white-space: pre-wrap; line-height: 1.6; }
+    footer { text-align: center; color: var(--muted); margin: 32px 0; }
+    .small { font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DT Empire AI</h1>
+    <p class="small">Fastest-model replies with per-user memory</p>
+  </header>
+  <main>
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <input id="userId" type="text" placeholder="User ID (auto)" />
+        <select id="model">
+          <option value="">Auto (fastest)</option>
+          <option value="claude">Claude</option>
+          <option value="claude-fast">Claude Fast</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="grok">Grok</option>
+          <option value="mistral">Mistral</option>
+          <option value="gemini">Gemini</option>
+          <option value="openai">OpenAI</option>
+          <option value="nova-micro">Nova Micro</option>
+        </select>
+      </div>
+      <textarea id="prompt" placeholder="Type your prompt... e.g., what's your name?"></textarea>
+      <div style="display:flex; gap:12px; margin-top:12px">
+        <button id="sendBtn">Ask AI</button>
+        <button id="clearBtn" style="background:#ff6b6b; color:#160000">Clear</button>
+      </div>
+      <div class="meta" id="meta"></div>
+      <div class="response" id="response"></div>
+    </div>
+  </main>
+  <footer>
+    <p>UI path: <strong>/ui</strong> • API: <strong>/api/ai-smart</strong></p>
+  </footer>
+
+  <script>
+    const userIdInput = document.getElementById('userId');
+    const modelSelect = document.getElementById('model');
+    const promptInput = document.getElementById('prompt');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const metaEl = document.getElementById('meta');
+    const respEl = document.getElementById('response');
+
+    function genId() {
+      return 'web-' + Math.random().toString(36).slice(2, 10);
+    }
+    const saved = localStorage.getItem('dt_userId') || genId();
+    localStorage.setItem('dt_userId', saved);
+    userIdInput.value = saved;
+
+    async function callAI() {
+      const prompt = promptInput.value.trim();
+      const userId = (userIdInput.value.trim() || saved);
+      const model = modelSelect.value.trim();
+      if (!prompt) return;
+      sendBtn.disabled = true;
+      respEl.textContent = '';
+      metaEl.textContent = 'Thinking...';
+      try {
+        const body = { prompt, userId };
+        if (model) body.model = model;
+        const res = await fetch('/api/ai-smart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          const used = data.model ? `model: ${data.model}` : 'model: auto';
+          const took = data.elapsedMs ? `, ${data.elapsedMs} ms` : '';
+          metaEl.textContent = `${used}${took}`;
+          respEl.textContent = data.text || '';
+        } else {
+          metaEl.textContent = 'Error';
+          respEl.textContent = data.message || 'Failed.';
+        }
+      } catch (e) {
+        metaEl.textContent = 'Network error';
+        respEl.textContent = e.message || String(e);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', callAI);
+    clearBtn.addEventListener('click', () => {
+      promptInput.value = '';
+      respEl.textContent = '';
+      metaEl.textContent = '';
+    });
+
+    // Enter to send
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        callAI();
+        e.preventDefault();
+      }
+    });
+  </script>
+</body>
+</html>

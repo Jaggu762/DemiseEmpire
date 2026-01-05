@@ -1,7 +1,7 @@
 {
   "bot": {
     "name": "DTEmpire",
-    "version": "2.7.1",
+    "version": "2.6.9",
     "ownerId": "564029689233014803",
     "prefix": "^",
     "token": "{{BOT_TOKEN}}",

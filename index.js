@@ -1628,164 +1628,6 @@ client.on('interactionCreate', async (interaction) => {
                 return;
             }
             
-            // ========== SUGGESTION BUTTON HANDLER ==========
-            if (interaction.customId.startsWith('suggest_')) {
-                try {
-                    const parts = interaction.customId.replace('suggest_', '').split('_');
-                    const action = parts[0];
-                    const suggestionId = parts.slice(1).join('_');
-
-                    // Get the suggestion message
-                    const suggestionMsg = interaction.message;
-                    
-                    // Parse suggestion data from embed
-                    const embed = suggestionMsg.embeds[0];
-                    if (!embed) {
-                        return interaction.reply({
-                            content: '❌ Could not find suggestion data!',
-                            flags: 64
-                        });
-                    }
-
-                    // Extract current votes from embed
-                    const votesField = embed.fields.find(f => f.name.includes('📊'));
-                    let upvotes = 0, downvotes = 0;
-                    if (votesField) {
-                        const match = votesField.value.match(/⬆️ (\d+)|⬇️ (\d+)/g);
-                        if (match) {
-                            upvotes = parseInt(match[0].match(/\d+/)[0]) || 0;
-                            downvotes = parseInt(match[1].match(/\d+/)[0]) || 0;
-                        }
-                    }
-
-                    // Handle upvote/downvote
-                    if (action === 'upvote') {
-                        upvotes++;
-                        await interaction.reply({
-                            content: '⬆️ Upvoted!',
-                            flags: 64
-                        });
-                        
-                        // Update embed
-                        const totalVotes = upvotes + downvotes;
-                        const upvotePercent = totalVotes > 0 ? ((upvotes / totalVotes) * 100).toFixed(0) : 0;
-                        
-                        const updatedEmbed = new EmbedBuilder(embed)
-                            .spliceFields(
-                                embed.fields.findIndex(f => f.name.includes('📊')), 1,
-                                { name: '📊 Votes', value: `⬆️ ${upvotes} (${upvotePercent}%) | ⬇️ ${downvotes}`, inline: true }
-                            );
-                        
-                        await suggestionMsg.edit({ embeds: [updatedEmbed] });
-                    } 
-                    else if (action === 'downvote') {
-                        downvotes++;
-                        await interaction.reply({
-                            content: '⬇️ Downvoted!',
-                            flags: 64
-                        });
-                        
-                        // Update embed
-                        const totalVotes = upvotes + downvotes;
-                        const upvotePercent = totalVotes > 0 ? ((upvotes / totalVotes) * 100).toFixed(0) : 0;
-                        
-                        const updatedEmbed = new EmbedBuilder(embed)
-                            .spliceFields(
-                                embed.fields.findIndex(f => f.name.includes('📊')), 1,
-                                { name: '📊 Votes', value: `⬆️ ${upvotes} (${upvotePercent}%) | ⬇️ ${downvotes}`, inline: true }
-                            );
-                        
-                        await suggestionMsg.edit({ embeds: [updatedEmbed] });
-                    }
-                    // Handle admin actions (approve, deny, consider)
-                    else if (action === 'approve' || action === 'deny' || action === 'consider') {
-                        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-                            return interaction.reply({
-                                content: '❌ You need **Manage Messages** permission to moderate suggestions!',
-                                flags: 64
-                            });
-                        }
-
-                        let statusEmoji = '✅';
-                        let statusText = 'Approved';
-                        let statusColor = '#00ff00';
-
-                        if (action === 'deny') {
-                            statusEmoji = '❌';
-                            statusText = 'Denied';
-                            statusColor = '#ff0000';
-                        } else if (action === 'consider') {
-                            statusEmoji = '🤔';
-                            statusText = 'Under Consideration';
-                            statusColor = '#ffaa00';
-                        }
-
-                        await interaction.reply({
-                            content: `${statusEmoji} Suggestion marked as **${statusText}**!`,
-                            flags: 64
-                        });
-                        
-                        // Update embed status
-                        const statusFieldIndex = embed.fields.findIndex(f => f.name.includes('📝'));
-                        const updatedEmbed = new EmbedBuilder(embed)
-                            .setColor(statusColor)
-                            .spliceFields(
-                                statusFieldIndex, 1,
-                                { name: '📝 Status', value: `${statusEmoji} ${statusText}`, inline: true }
-                            );
-                        
-                        await suggestionMsg.edit({ embeds: [updatedEmbed] });
-                    }
-                } catch (error) {
-                    console.error('Suggestion button error:', error);
-                    await interaction.reply({
-                        content: '❌ Failed to process suggestion action!',
-                        flags: 64
-                    });
-                }
-                return;
-            }
-            
-            // ========== REACTION ROLE BUTTON HANDLER ==========
-            if (interaction.customId.startsWith('rr_')) {
-                try {
-                    const roleId = interaction.customId.replace('rr_', '');
-                    const role = interaction.guild.roles.cache.get(roleId);
-
-                    if (!role) {
-                        return interaction.reply({ 
-                            content: '❌ Role not found!', 
-                            flags: 64 
-                        });
-                    }
-
-                    const member = interaction.guild.members.cache.get(interaction.user.id);
-
-                    if (member.roles.cache.has(roleId)) {
-                        // Remove role
-                        await member.roles.remove(role);
-                        await interaction.reply({ 
-                            content: `✅ Removed role: ${role.name}`, 
-                            flags: 64 
-                        });
-                    } else {
-                        // Add role
-                        await member.roles.add(role);
-                        await interaction.reply({ 
-                            content: `✅ Added role: ${role.name}`, 
-                            flags: 64 
-                        });
-                    }
-                } catch (error) {
-                    console.error('Reaction role button error:', error);
-                    await interaction.reply({ 
-                        content: '❌ Failed to manage role!', 
-                        flags: 64 
-                    });
-                }
-                return;
-            }
-            
             // If no handler matched
             console.log(`[Button] No handler for: ${interaction.customId}`);
             
@@ -2424,7 +2266,7 @@ client.on('ready', async () => {
     client.user.setPresence({
         activities: [{
             name: `${client.botInfo.prefix}help | v${client.botInfo.version}`,
-            type: ActivityType.Playing
+            type: ActivityType.Listening
         }],
         status: 'online'
     });
@@ -2630,17 +2472,6 @@ async function startBot() {
         }, 5000); // Start after 5 seconds
         
         console.log('✅ AutoRoom Manager initialized');
-        
-        // ========== INITIALIZE BIRTHDAY CHECKER ==========
-        try {
-            const birthdayCommand = client.commands.get('birthday');
-            if (birthdayCommand && birthdayCommand.initBirthdayChecker) {
-                birthdayCommand.initBirthdayChecker(client, client.db);
-                console.log('✅ Birthday checker initialized');
-            }
-        } catch (birthdayError) {
-            console.error('❌ Failed to initialize birthday checker:', birthdayError.message);
-        }
         
         // Login with environment variable token
         await client.login(config.bot.token);
