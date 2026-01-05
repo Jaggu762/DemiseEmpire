@@ -63,9 +63,9 @@ async function submitSuggestion(message, args, client, db) {
     // Try to load from database if not in memory
     if (!suggestionChannelId) {
         try {
-            const config = await db.getGuildConfig(guildId, 'suggestion_channel');
-            if (config) {
-                suggestionChannelId = config;
+            const config = await db.getGuildConfig(guildId);
+            if (config && config.suggestion_channel) {
+                suggestionChannelId = config.suggestion_channel;
                 suggestionChannels.set(guildId, suggestionChannelId);
             }
         } catch (error) {
