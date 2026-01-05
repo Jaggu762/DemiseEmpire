@@ -177,12 +177,16 @@ class Database {
                 media_only_channel: null,
                 slowmode_channel: null,
                 birthday_channel: null,
+                media_notification_channel: null,
                 
                 // ========== ROLE CONFIGURATIONS ==========
                 auto_role: null,
                 moderator_role: null,
                 admin_role: null,
                 mute_role: null,
+                
+                // ========== MEDIA NOTIFICATIONS ==========
+                media_creators: [], // { platform, username, addedBy, addedAt }
                 verified_role: null,
                 
                 // ========== AI SETTINGS ==========
