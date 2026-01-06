@@ -1,0 +1,57 @@
+{
+  "guildConfigs": {},
+  "userEconomy": {},
+  "snipes": {},
+  "mutes": {},
+  "warnings": {},
+  "giveaways": {},
+  "properties": {},
+  "jobs": {},
+  "lottery": {},
+  "transactions": {},
+  "stickyMessages": {},
+  "tickets": {},
+  "ticketSystems": {},
+  "ticketLogs": {},
+  "birthdays": {},
+  "polls": {},
+  "suggestions": {},
+  "reputation": {
+    "guild456_user123": {
+      "userId": "user123",
+      "guildId": "guild456",
+      "points": 53,
+      "messageCount": 1,
+      "commandCount": 1,
+      "lastMessageTime": 1767683895731,
+      "lastCommandTime": 1767683895732,
+      "createdAt": 1767683895730,
+      "updatedAt": 1767683895733,
+      "history": [
+        {
+          "points": 50,
+          "reason": "Test bonus",
+          "timestamp": 1767683895733
+        }
+      ]
+    },
+    "guild456_user789": {
+      "userId": "user789",
+      "guildId": "guild456",
+      "points": 101,
+      "messageCount": 1,
+      "commandCount": 0,
+      "lastMessageTime": 1767683895733,
+      "lastCommandTime": null,
+      "createdAt": 1767683895733,
+      "updatedAt": 1767683895733,
+      "history": [
+        {
+          "points": 100,
+          "reason": "Test bonus",
+          "timestamp": 1767683895733
+        }
+      ]
+    }
+  }
+}
