@@ -751,6 +751,15 @@ client.on('messageCreate', async (message) => {
     // ========== AWARD XP FOR MESSAGES ==========
     await awardMessageXP(message, client, client.db);
     
+    // ========== TRACK REPUTATION FOR MESSAGES ==========
+    if (client.db && client.db.trackMessageReputation) {
+        try {
+            await client.db.trackMessageReputation(message.author.id, message.guild.id);
+        } catch (error) {
+            console.error('Reputation tracking error:', error);
+        }
+    }
+    
     // ========== ADDED: Handle sticky messages ==========
     if (client.db && stickyHandler) {
         await stickyHandler.handleMessageCreate(message, client, client.db);
@@ -866,6 +875,15 @@ client.on('messageCreate', async (message) => {
             const Database = require('./utils/database');
             const dbInstance = new Database();
             client.db = await dbInstance.initialize();
+        }
+        
+        // Track reputation for command usage
+        if (client.db && client.db.trackCommandReputation) {
+            try {
+                await client.db.trackCommandReputation(message.author.id, message.guild.id);
+            } catch (error) {
+                console.error('Command reputation tracking error:', error);
+            }
         }
         
         // Execute command with database
