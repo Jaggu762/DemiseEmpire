@@ -20,7 +20,8 @@ class Database {
             ticketLogs: {}, // Added for ticket logs
             birthdays: {}, // Added for birthday system
             polls: {}, // Added for poll system
-            suggestions: {} // Added for suggestion system
+            suggestions: {}, // Added for suggestion system
+            reputation: {} // Added for reputation system
         };
         this.dbPath = path.join(__dirname, '..', 'data', 'database.json');
     }
@@ -1475,6 +1476,151 @@ class Database {
             }
         }
         return birthdays;
+    }
+
+    // ========== REPUTATION SYSTEM METHODS ==========
+    
+    /**
+     * Get user reputation data
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {Object} Reputation data
+     */
+    async getUserReputation(userId, guildId) {
+        if (!this.data.reputation) this.data.reputation = {};
+        
+        const key = `${guildId}_${userId}`;
+        if (!this.data.reputation[key]) {
+            this.data.reputation[key] = {
+                userId: userId,
+                guildId: guildId,
+                points: 0,
+                messageCount: 0,
+                commandCount: 0,
+                lastMessageTime: null,
+                lastCommandTime: null,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            };
+            this.save();
+        }
+        
+        return this.data.reputation[key];
+    }
+    
+    /**
+     * Update user reputation
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @param {Object} updates - Updates to apply
+     * @returns {Object} Updated reputation data
+     */
+    async updateUserReputation(userId, guildId, updates) {
+        const reputation = await this.getUserReputation(userId, guildId);
+        
+        Object.assign(reputation, updates);
+        reputation.updatedAt = Date.now();
+        
+        this.save();
+        return reputation;
+    }
+    
+    /**
+     * Add reputation points to a user
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @param {number} points - Points to add
+     * @param {string} reason - Reason for adding points
+     * @returns {Object} Updated reputation data
+     */
+    async addReputationPoints(userId, guildId, points, reason = 'manual') {
+        const reputation = await this.getUserReputation(userId, guildId);
+        
+        reputation.points += points;
+        reputation.updatedAt = Date.now();
+        
+        // Track the reason for reputation change
+        if (!reputation.history) reputation.history = [];
+        reputation.history.push({
+            points: points,
+            reason: reason,
+            timestamp: Date.now()
+        });
+        
+        // Keep only last 100 history entries
+        if (reputation.history.length > 100) {
+            reputation.history = reputation.history.slice(-100);
+        }
+        
+        this.save();
+        return reputation;
+    }
+    
+    /**
+     * Track message post for reputation
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {Object} Updated reputation data
+     */
+    async trackMessageReputation(userId, guildId) {
+        const reputation = await this.getUserReputation(userId, guildId);
+        const now = Date.now();
+        
+        // Check cooldown (1 minute)
+        const cooldown = 60000; // 1 minute
+        if (reputation.lastMessageTime && (now - reputation.lastMessageTime) < cooldown) {
+            return reputation; // Don't award points if on cooldown
+        }
+        
+        reputation.messageCount += 1;
+        reputation.points += 1; // 1 point per message
+        reputation.lastMessageTime = now;
+        reputation.updatedAt = now;
+        
+        this.save();
+        return reputation;
+    }
+    
+    /**
+     * Track command usage for reputation
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {Object} Updated reputation data
+     */
+    async trackCommandReputation(userId, guildId) {
+        const reputation = await this.getUserReputation(userId, guildId);
+        const now = Date.now();
+        
+        // Check cooldown (5 minutes)
+        const cooldown = 300000; // 5 minutes
+        if (reputation.lastCommandTime && (now - reputation.lastCommandTime) < cooldown) {
+            return reputation; // Don't award points if on cooldown
+        }
+        
+        reputation.commandCount += 1;
+        reputation.points += 2; // 2 points per command
+        reputation.lastCommandTime = now;
+        reputation.updatedAt = now;
+        
+        this.save();
+        return reputation;
+    }
+    
+    /**
+     * Get reputation leaderboard for a guild
+     * @param {string} guildId - Guild ID
+     * @param {number} limit - Number of users to return
+     * @returns {Array} Array of reputation data sorted by points
+     */
+    async getReputationLeaderboard(guildId, limit = 10) {
+        if (!this.data.reputation) return [];
+        
+        const guildReputation = Object.values(this.data.reputation)
+            .filter(rep => rep.guildId === guildId)
+            .sort((a, b) => b.points - a.points)
+            .slice(0, limit);
+        
+        return guildReputation;
     }
 }
 
