@@ -356,18 +356,6 @@ All contributors will be:
 
 ---
 
-## 🗺️ Future Development
-
-Check out our comprehensive development plans:
-
-- **[Roadmap](ROADMAP.md)** - Long-term vision and planned features
-- **[Feature Priorities](FEATURE_PRIORITIES.md)** - Priority matrix and quick wins
-- **[Implementation Guide](IMPLEMENTATION_GUIDE.md)** - Detailed technical specifications
-
-**Want to contribute?** Check our roadmap and pick a feature you're interested in!
-
----
-
 ## 📄 License
 
 Licensed under the **MIT License**.
