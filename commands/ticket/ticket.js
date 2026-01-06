@@ -92,6 +92,11 @@ module.exports = {
                 await handleCloseTicket(interaction, client, db);
             }
             
+            // Handle Rate Support Button
+            else if (interaction.customId.startsWith('rate_support_')) {
+                await handleRateSupport(interaction, client, db);
+            }
+            
             // If none of the above, log it
             else {
                 console.log(`[Ticket] Unknown interaction: ${interaction.customId}`);
@@ -1298,10 +1303,42 @@ async function handleCloseTicket(interaction, client, db) {
                 { name: 'Ticket ID', value: channel.name.split('-').pop() || 'Unknown', inline: true },
                 { name: 'Reason', value: reason || 'Not specified', inline: false }
             )
-            .setFooter({ text: 'This channel will be deleted in 10 seconds' })
+            .setFooter({ text: 'This channel will be deleted in 30 seconds' })
             .setTimestamp();
         
-        await channel.send({ embeds: [closeEmbed] });
+        // Add rate support button if user is the ticket creator and closer is staff
+        const isStaff = interaction.member.permissions.has(PermissionFlagsBits.ManageChannels) ||
+                       interaction.member.roles.cache.some(role => 
+                           role.name.toLowerCase().includes('staff') ||
+                           role.name.toLowerCase().includes('mod') ||
+                           role.name.toLowerCase().includes('admin')
+                       );
+        
+        const isTicketOwner = userId === interaction.user.id;
+        
+        let components = [];
+        if (!isTicketOwner && isStaff && userId !== 'Unknown') {
+            // Staff closed the ticket, allow user to rate
+            const rateButton = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`rate_support_${interaction.user.id}_${userId}`)
+                        .setLabel('⭐ Rate Support')
+                        .setStyle(ButtonStyle.Success)
+                );
+            components.push(rateButton);
+            
+            closeEmbed.addFields({
+                name: '⭐ Rate This Support',
+                value: `${userName}, if you're satisfied with the support, click the button below to give reputation!`,
+                inline: false
+            });
+        }
+        
+        await channel.send({ 
+            embeds: [closeEmbed],
+            components: components
+        });
         
         await interaction.reply({
             content: '✅ Ticket closed. Channel will be deleted shortly.',
@@ -1336,14 +1373,14 @@ async function handleCloseTicket(interaction, client, db) {
             }
         }
         
-        // Delete channel after delay
+        // Delete channel after delay (increased to 30s for rating)
         setTimeout(async () => {
             try {
                 await channel.delete('Ticket closed by user');
             } catch (error) {
                 console.log('Could not delete channel:', error.message);
             }
-        }, 10000);
+        }, 30000);
         
     } catch (error) {
         console.error('Close ticket error:', error);
@@ -1599,5 +1636,119 @@ async function removeUser(message, args) {
     } catch (error) {
         console.error('Remove user error:', error);
         message.reply('❌ Failed to remove user from ticket.');
+    }
+}
+// ========== RATE SUPPORT HANDLER ==========
+async function handleRateSupport(interaction, client, db) {
+    try {
+        // Parse staff and user IDs from custom ID
+        const parts = interaction.customId.split('_');
+        const staffId = parts[2];
+        const userId = parts[3];
+        
+        // Check if the person clicking is the ticket owner
+        if (interaction.user.id !== userId) {
+            return await interaction.reply({
+                content: '❌ Only the ticket owner can rate support.',
+                flags: 64
+            });
+        }
+        
+        // Get staff member
+        const staffMember = await interaction.guild.members.fetch(staffId).catch(() => null);
+        if (!staffMember) {
+            return await interaction.reply({
+                content: '❌ Staff member not found.',
+                flags: 64
+            });
+        }
+        
+        // Use reputation service to give rep
+        const repService = new (require('../../utils/reputationService'))(db);
+        
+        const userMember = await interaction.guild.members.fetch(userId);
+        const result = await repService.giveRep(
+            userMember,
+            staffMember,
+            interaction.guild,
+            'Excellent support in ticket',
+            interaction.channel.id
+        );
+        
+        if (result.success) {
+            const embed = new EmbedBuilder()
+                .setColor('#00ff00')
+                .setTitle('⭐ Support Rated!')
+                .setDescription(`You gave reputation to ${staffMember.user.username} for their support!`)
+                .addFields(
+                    { name: 'Staff Member', value: staffMember.user.toString(), inline: true },
+                    { name: 'New Reputation', value: `${result.data.newRepTotal} points`, inline: true }
+                )
+                .setFooter({ text: 'Reputation System' })
+                .setTimestamp();
+            
+            await interaction.reply({ embeds: [embed] });
+            
+            // Log reputation action
+            if (client.loggingSystem) {
+                await client.loggingSystem.logReputationAction(
+                    interaction.guild.id,
+                    'give',
+                    interaction.user,
+                    staffMember.user,
+                    'Excellent support in ticket',
+                    interaction.channel.id,
+                    {
+                        newTotal: result.data.newRepTotal,
+                        rank: result.data.rank
+                    }
+                );
+            }
+            
+            // Check and assign roles
+            const roleResult = await repService.checkAndAssignRoles(staffMember, interaction.guild.id, result.data.newRepTotal);
+            if (roleResult.rolesAdded.length > 0) {
+                const roleNames = roleResult.rolesAdded
+                    .map(roleId => {
+                        const role = interaction.guild.roles.cache.get(roleId);
+                        return role ? role.name : 'Unknown Role';
+                    })
+                    .join(', ');
+                
+                await interaction.followUp({
+                    content: `🎉 ${staffMember.user.username} earned new roles: **${roleNames}**!`,
+                    flags: 64
+                });
+            }
+        } else {
+            await interaction.reply({
+                content: result.message,
+                flags: 64
+            });
+        }
+        
+        // Disable the button after use
+        try {
+            const message = interaction.message;
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('rate_support_used')
+                        .setLabel('⭐ Support Rated')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true)
+                );
+            
+            await message.edit({ components: [row] });
+        } catch (error) {
+            console.log('Could not disable button:', error.message);
+        }
+        
+    } catch (error) {
+        console.error('Rate support error:', error);
+        await interaction.reply({
+            content: '❌ An error occurred while rating support.',
+            flags: 64
+        });
     }
 }

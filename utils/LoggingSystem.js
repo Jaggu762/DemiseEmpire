@@ -21,7 +21,8 @@ class LoggingSystem {
                 'channel': 'channel_log_channel',
                 'voice': 'voice_log_channel',
                 'invite': 'invite_log_channel',
-                'ticket': 'ticket_log_channel'
+                'ticket': 'ticket_log_channel',
+                'reputation': 'reputation_log_channel'
             };
             
             const fieldName = channelMapping[channelType];
@@ -650,6 +651,72 @@ class LoggingSystem {
             console.log(`✅ Logged invite delete: ${invite.code}`);
         }
         return success;
+    }
+
+    // ========== REPUTATION LOGS ==========
+    async logReputationAction(guildId, action, giverUser, receiverUser, reason, channelId, additionalData = {}) {
+        try {
+            const actionColors = {
+                'give': Colors.Green,
+                'reset': Colors.Red,
+                'remove': Colors.Orange
+            };
+
+            const actionEmojis = {
+                'give': '⭐',
+                'reset': '🔄',
+                'remove': '➖'
+            };
+
+            const embedData = {
+                title: `${actionEmojis[action] || '⭐'} Reputation ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+                color: actionColors[action] || Colors.Blue,
+                description: `Reputation ${action} action performed`,
+                fields: [
+                    { name: '👤 Giver', value: `${userMention(giverUser.id)}\n\`${giverUser.tag}\``, inline: true },
+                    { name: '🎯 Receiver', value: `${userMention(receiverUser.id)}\n\`${receiverUser.tag}\``, inline: true },
+                    { name: '📍 Channel', value: channelMention(channelId), inline: true }
+                ],
+                footer: { text: 'DTEmpire Reputation System' }
+            };
+
+            if (reason) {
+                embedData.fields.push({ name: '📝 Reason', value: reason, inline: false });
+            }
+
+            if (additionalData.newTotal !== undefined) {
+                embedData.fields.push({ 
+                    name: '⭐ New Total', 
+                    value: `${additionalData.newTotal} reputation`, 
+                    inline: true 
+                });
+            }
+
+            if (additionalData.rank !== undefined && additionalData.rank > 0) {
+                embedData.fields.push({ 
+                    name: '🏆 Server Rank', 
+                    value: `#${additionalData.rank}`, 
+                    inline: true 
+                });
+            }
+
+            if (additionalData.moderator) {
+                embedData.fields.push({ 
+                    name: '🛡️ Moderator', 
+                    value: `${userMention(additionalData.moderator.id)}\n\`${additionalData.moderator.tag}\``, 
+                    inline: true 
+                });
+            }
+
+            const success = await this.logToChannel(guildId, 'reputation', embedData);
+            if (success) {
+                console.log(`✅ Logged reputation ${action}: ${giverUser.tag} → ${receiverUser.tag}`);
+            }
+            return success;
+        } catch (error) {
+            console.error('Reputation log error:', error);
+            return false;
+        }
     }
 }
 

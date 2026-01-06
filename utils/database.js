@@ -20,7 +20,12 @@ class Database {
             ticketLogs: {}, // Added for ticket logs
             birthdays: {}, // Added for birthday system
             polls: {}, // Added for poll system
-            suggestions: {} // Added for suggestion system
+            suggestions: {}, // Added for suggestion system
+            reputation: {}, // Added for reputation system
+            repLogs: {}, // Added for reputation logs
+            repCooldowns: {}, // Added for reputation cooldowns
+            repRoleRewards: {}, // Added for reputation role rewards
+            repSuspicious: {} // Added for suspicious reputation pattern tracking
         };
         this.dbPath = path.join(__dirname, '..', 'data', 'database.json');
     }
@@ -157,6 +162,7 @@ class Database {
                 economy_log_channel: null,
                 leveling_log_channel: null,
                 giveaway_log_channel: null,
+                reputation_log_channel: null,
                 
                 // ========== SYSTEM CHANNELS ==========
                 welcome_channel: null,
@@ -282,6 +288,17 @@ class Database {
                 ticket_panel_channel: null, // Added
                 ticket_type: null, // 'support', 'staff', 'bug', 'reports'
                 ticket_counter: 0, // Ticket counter for unique IDs
+                
+                // ========== REPUTATION SYSTEM ==========
+                reputation_enabled: true, // Enable/disable reputation system
+                reputation_cooldown_days: 7, // Same user cooldown (in days)
+                reputation_daily_limit: 1, // Daily reputation limit per user
+                reputation_reason_required: true, // Require reason for giving rep
+                reputation_min_account_age_days: 7, // Minimum account age to give rep
+                reputation_min_server_age_days: 3, // Minimum time in server to give rep
+                reputation_allowed_channels: [], // Empty = all channels allowed
+                reputation_min_reason_length: 5, // Minimum reason length
+                reputation_max_reason_length: 200, // Maximum reason length
                 
                 // ========== VERIFICATION SYSTEM ==========
                 verification_enabled: false,
@@ -1475,6 +1492,437 @@ class Database {
             }
         }
         return birthdays;
+    }
+
+    // ========== REPUTATION SYSTEM METHODS ==========
+    
+    /**
+     * Get user's reputation in a guild
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {Object} Reputation data
+     */
+    async getUserReputation(userId, guildId) {
+        const key = `${guildId}_${userId}`;
+        if (!this.data.reputation) this.data.reputation = {};
+        
+        if (!this.data.reputation[key]) {
+            this.data.reputation[key] = {
+                guild_id: guildId,
+                user_id: userId,
+                rep: 0,
+                last_received_at: null,
+                created_at: Date.now()
+            };
+            this.save();
+        }
+        
+        return this.data.reputation[key];
+    }
+
+    /**
+     * Update user's reputation
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @param {number} amount - Amount to add (positive only in v1)
+     * @returns {Object} Updated reputation data
+     */
+    async updateUserReputation(userId, guildId, amount = 1) {
+        const key = `${guildId}_${userId}`;
+        if (!this.data.reputation) this.data.reputation = {};
+        
+        const current = await this.getUserReputation(userId, guildId);
+        current.rep += amount;
+        current.last_received_at = Date.now();
+        
+        this.data.reputation[key] = current;
+        this.save();
+        return current;
+    }
+
+    /**
+     * Add a reputation log entry
+     * @param {string} guildId - Guild ID
+     * @param {string} giverId - User who gave rep
+     * @param {string} receiverId - User who received rep
+     * @param {string} reason - Reason for rep
+     * @param {string} channelId - Channel where rep was given
+     * @returns {Object} Log entry
+     */
+    async addRepLog(guildId, giverId, receiverId, reason, channelId) {
+        if (!this.data.repLogs) this.data.repLogs = {};
+        if (!this.data.repLogs[guildId]) this.data.repLogs[guildId] = [];
+        
+        const logEntry = {
+            id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            guild_id: guildId,
+            giver_id: giverId,
+            receiver_id: receiverId,
+            reason: reason,
+            channel_id: channelId,
+            created_at: Date.now()
+        };
+        
+        this.data.repLogs[guildId].push(logEntry);
+        
+        // Keep only last 1000 logs per guild to prevent bloat
+        if (this.data.repLogs[guildId].length > 1000) {
+            this.data.repLogs[guildId] = this.data.repLogs[guildId].slice(-1000);
+        }
+        
+        this.save();
+        return logEntry;
+    }
+
+    /**
+     * Get reputation history for a user
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @param {number} limit - Max number of entries to return
+     * @returns {Array} Log entries
+     */
+    async getRepHistory(userId, guildId, limit = 10) {
+        if (!this.data.repLogs || !this.data.repLogs[guildId]) return [];
+        
+        return this.data.repLogs[guildId]
+            .filter(log => log.receiver_id === userId)
+            .sort((a, b) => b.created_at - a.created_at)
+            .slice(0, limit);
+    }
+
+    /**
+     * Set a reputation cooldown
+     * @param {string} guildId - Guild ID
+     * @param {string} giverId - User who gave rep
+     * @param {string} receiverId - User who received rep
+     * @param {number} expiresAt - Timestamp when cooldown expires
+     * @returns {Object} Cooldown entry
+     */
+    async setRepCooldown(guildId, giverId, receiverId, expiresAt) {
+        const key = `${guildId}_${giverId}_${receiverId}`;
+        if (!this.data.repCooldowns) this.data.repCooldowns = {};
+        
+        this.data.repCooldowns[key] = {
+            guild_id: guildId,
+            giver_id: giverId,
+            receiver_id: receiverId,
+            expires_at: expiresAt,
+            created_at: Date.now()
+        };
+        
+        this.save();
+        return this.data.repCooldowns[key];
+    }
+
+    /**
+     * Check if a rep cooldown is active
+     * @param {string} guildId - Guild ID
+     * @param {string} giverId - User who wants to give rep
+     * @param {string} receiverId - User who would receive rep
+     * @returns {Object|null} Cooldown data if active, null otherwise
+     */
+    async getRepCooldown(guildId, giverId, receiverId) {
+        const key = `${guildId}_${giverId}_${receiverId}`;
+        if (!this.data.repCooldowns) this.data.repCooldowns = {};
+        
+        const cooldown = this.data.repCooldowns[key];
+        if (!cooldown) return null;
+        
+        // Check if cooldown has expired
+        if (Date.now() >= cooldown.expires_at) {
+            delete this.data.repCooldowns[key];
+            this.save();
+            return null;
+        }
+        
+        return cooldown;
+    }
+
+    /**
+     * Get daily rep count for a user (how many times they gave rep today)
+     * @param {string} giverId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {number} Number of reps given today
+     */
+    async getDailyRepCount(giverId, guildId) {
+        if (!this.data.repLogs || !this.data.repLogs[guildId]) return 0;
+        
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        return this.data.repLogs[guildId].filter(log => 
+            log.giver_id === giverId && log.created_at > oneDayAgo
+        ).length;
+    }
+
+    /**
+     * Get reputation leaderboard for a guild
+     * @param {string} guildId - Guild ID
+     * @param {number} limit - Max number of entries to return
+     * @returns {Array} Top users by reputation
+     */
+    async getRepLeaderboard(guildId, limit = 10) {
+        if (!this.data.reputation) return [];
+        
+        const guildReps = [];
+        for (const key in this.data.reputation) {
+            const rep = this.data.reputation[key];
+            if (rep.guild_id === guildId && rep.rep > 0) {
+                guildReps.push(rep);
+            }
+        }
+        
+        return guildReps
+            .sort((a, b) => b.rep - a.rep)
+            .slice(0, limit);
+    }
+
+    /**
+     * Get user's rank in the reputation leaderboard
+     * @param {string} userId - User ID
+     * @param {string} guildId - Guild ID
+     * @returns {number} Rank (1-indexed), or 0 if not ranked
+     */
+    async getRepRank(userId, guildId) {
+        if (!this.data.reputation) return 0;
+        
+        const guildReps = [];
+        for (const key in this.data.reputation) {
+            const rep = this.data.reputation[key];
+            if (rep.guild_id === guildId && rep.rep > 0) {
+                guildReps.push(rep);
+            }
+        }
+        
+        const sorted = guildReps.sort((a, b) => b.rep - a.rep);
+        const index = sorted.findIndex(rep => rep.user_id === userId);
+        
+        return index === -1 ? 0 : index + 1;
+    }
+
+    /**
+     * Clean up expired reputation cooldowns
+     * @returns {number} Number of cooldowns removed
+     */
+    async cleanupRepCooldowns() {
+        if (!this.data.repCooldowns) return 0;
+        
+        const now = Date.now();
+        let cleaned = 0;
+        
+        for (const key in this.data.repCooldowns) {
+            if (this.data.repCooldowns[key].expires_at < now) {
+                delete this.data.repCooldowns[key];
+                cleaned++;
+            }
+        }
+        
+        if (cleaned > 0) {
+            this.save();
+        }
+        
+        return cleaned;
+    }
+
+    // ========== REPUTATION ROLE REWARDS METHODS ==========
+    
+    /**
+     * Add a reputation role reward
+     * @param {string} guildId - Guild ID
+     * @param {string} roleId - Role ID to award
+     * @param {number} repThreshold - Reputation threshold required
+     * @returns {Object} Role reward entry
+     */
+    async addRepRoleReward(guildId, roleId, repThreshold) {
+        if (!this.data.repRoleRewards) this.data.repRoleRewards = {};
+        if (!this.data.repRoleRewards[guildId]) this.data.repRoleRewards[guildId] = [];
+        
+        // Check if role reward already exists
+        const existing = this.data.repRoleRewards[guildId].find(r => r.role_id === roleId);
+        if (existing) {
+            // Update threshold
+            existing.rep_threshold = repThreshold;
+            existing.updated_at = Date.now();
+        } else {
+            // Add new role reward
+            this.data.repRoleRewards[guildId].push({
+                role_id: roleId,
+                rep_threshold: repThreshold,
+                created_at: Date.now(),
+                updated_at: Date.now()
+            });
+        }
+        
+        // Sort by threshold (ascending)
+        this.data.repRoleRewards[guildId].sort((a, b) => a.rep_threshold - b.rep_threshold);
+        
+        this.save();
+        return this.data.repRoleRewards[guildId].find(r => r.role_id === roleId);
+    }
+
+    /**
+     * Remove a reputation role reward
+     * @param {string} guildId - Guild ID
+     * @param {string} roleId - Role ID to remove
+     * @returns {boolean} True if removed, false if not found
+     */
+    async removeRepRoleReward(guildId, roleId) {
+        if (!this.data.repRoleRewards || !this.data.repRoleRewards[guildId]) return false;
+        
+        const initialLength = this.data.repRoleRewards[guildId].length;
+        this.data.repRoleRewards[guildId] = this.data.repRoleRewards[guildId].filter(
+            r => r.role_id !== roleId
+        );
+        
+        if (this.data.repRoleRewards[guildId].length < initialLength) {
+            this.save();
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get all reputation role rewards for a guild
+     * @param {string} guildId - Guild ID
+     * @returns {Array} List of role rewards sorted by threshold
+     */
+    async getRepRoleRewards(guildId) {
+        if (!this.data.repRoleRewards || !this.data.repRoleRewards[guildId]) return [];
+        return this.data.repRoleRewards[guildId];
+    }
+
+    /**
+     * Get roles that a user should have based on their reputation
+     * @param {string} guildId - Guild ID
+     * @param {number} userRep - User's current reputation
+     * @returns {Array} List of role IDs user should have
+     */
+    async getRolesForReputation(guildId, userRep) {
+        const roleRewards = await this.getRepRoleRewards(guildId);
+        return roleRewards
+            .filter(reward => userRep >= reward.rep_threshold)
+            .map(reward => reward.role_id);
+    }
+
+    // ========== REPUTATION PATTERN DETECTION METHODS ==========
+    
+    /**
+     * Check for suspicious reputation patterns (A↔B trading)
+     * @param {string} guildId - Guild ID
+     * @param {string} user1Id - First user ID
+     * @param {string} user2Id - Second user ID
+     * @returns {Object} Pattern analysis
+     */
+    async checkRepPattern(guildId, user1Id, user2Id) {
+        if (!this.data.repLogs || !this.data.repLogs[guildId]) {
+            return { suspicious: false, count: 0 };
+        }
+
+        const logs = this.data.repLogs[guildId];
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        
+        // Count A→B and B→A reps in last 30 days
+        const aToB = logs.filter(log => 
+            log.giver_id === user1Id && 
+            log.receiver_id === user2Id && 
+            log.created_at > thirtyDaysAgo
+        ).length;
+        
+        const bToA = logs.filter(log => 
+            log.giver_id === user2Id && 
+            log.receiver_id === user1Id && 
+            log.created_at > thirtyDaysAgo
+        ).length;
+        
+        const totalExchanges = aToB + bToA;
+        const isMutual = aToB > 0 && bToA > 0;
+        
+        // Flag if 3+ mutual exchanges in 30 days
+        const suspicious = isMutual && totalExchanges >= 3;
+        
+        return {
+            suspicious,
+            count: totalExchanges,
+            aToB,
+            bToA,
+            isMutual
+        };
+    }
+
+    /**
+     * Log suspicious reputation pattern
+     * @param {string} guildId - Guild ID
+     * @param {string} user1Id - First user ID
+     * @param {string} user2Id - Second user ID
+     * @param {Object} patternData - Pattern analysis data
+     */
+    async logSuspiciousPattern(guildId, user1Id, user2Id, patternData) {
+        if (!this.data.repSuspicious) this.data.repSuspicious = {};
+        if (!this.data.repSuspicious[guildId]) this.data.repSuspicious[guildId] = [];
+        
+        const key = [user1Id, user2Id].sort().join('_');
+        
+        // Check if already logged recently (within 7 days)
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        const existingRecent = this.data.repSuspicious[guildId].find(
+            entry => entry.pair_key === key && entry.logged_at > sevenDaysAgo
+        );
+        
+        if (!existingRecent) {
+            this.data.repSuspicious[guildId].push({
+                pair_key: key,
+                user1_id: user1Id,
+                user2_id: user2Id,
+                pattern_data: patternData,
+                logged_at: Date.now(),
+                reviewed: false
+            });
+            
+            // Keep only last 100 entries per guild
+            if (this.data.repSuspicious[guildId].length > 100) {
+                this.data.repSuspicious[guildId] = this.data.repSuspicious[guildId].slice(-100);
+            }
+            
+            this.save();
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get suspicious reputation patterns for a guild
+     * @param {string} guildId - Guild ID
+     * @param {boolean} unreviewedOnly - Only show unreviewed patterns
+     * @returns {Array} Suspicious patterns
+     */
+    async getSuspiciousPatterns(guildId, unreviewedOnly = false) {
+        if (!this.data.repSuspicious || !this.data.repSuspicious[guildId]) return [];
+        
+        let patterns = this.data.repSuspicious[guildId];
+        if (unreviewedOnly) {
+            patterns = patterns.filter(p => !p.reviewed);
+        }
+        
+        return patterns.sort((a, b) => b.logged_at - a.logged_at);
+    }
+
+    /**
+     * Mark suspicious pattern as reviewed
+     * @param {string} guildId - Guild ID
+     * @param {string} pairKey - Pair key
+     */
+    async markPatternReviewed(guildId, pairKey) {
+        if (!this.data.repSuspicious || !this.data.repSuspicious[guildId]) return false;
+        
+        const pattern = this.data.repSuspicious[guildId].find(p => p.pair_key === pairKey);
+        if (pattern) {
+            pattern.reviewed = true;
+            pattern.reviewed_at = Date.now();
+            this.save();
+            return true;
+        }
+        
+        return false;
     }
 }
 

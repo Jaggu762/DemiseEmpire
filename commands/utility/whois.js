@@ -104,6 +104,39 @@ module.exports = {
             { name: '📊 Server Rank', value: member ? `#${[...message.guild.members.cache.values()].sort((a, b) => a.joinedTimestamp - b.joinedTimestamp).findIndex(m => m.id === user.id) + 1}` : 'N/A', inline: true }
         );
         
+        // Add reputation information if available
+        if (member && client.db) {
+            try {
+                const repData = await client.db.getUserReputation(user.id, message.guild.id);
+                const repRank = await client.db.getRepRank(user.id, message.guild.id);
+                
+                if (repData && repData.rep > 0) {
+                    // Get reputation role if any
+                    const roleRewards = await client.db.getRepRoleRewards(message.guild.id);
+                    const eligibleRoles = roleRewards
+                        .filter(r => repData.rep >= r.rep_threshold)
+                        .sort((a, b) => b.rep_threshold - a.rep_threshold);
+                    
+                    let repValue = `⭐ **${repData.rep}** points`;
+                    if (repRank > 0) {
+                        repValue += ` • Rank: #${repRank}`;
+                    }
+                    
+                    if (eligibleRoles.length > 0) {
+                        const topRole = message.guild.roles.cache.get(eligibleRoles[0].role_id);
+                        if (topRole) {
+                            repValue += `\n🎭 Rep Role: ${topRole.toString()}`;
+                        }
+                    }
+                    
+                    embed.addFields({ name: '⭐ Reputation', value: repValue, inline: false });
+                }
+            } catch (error) {
+                // Silently fail if reputation system not available
+                console.error('Error fetching reputation for whois:', error.message);
+            }
+        }
+        
         embed.setFooter({ text: `DTEmpire v${client.botInfo.version} | User Information`, iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
         
