@@ -59,8 +59,10 @@ module.exports = {
                 break;
             case 'daily':
             case 'checkin':
-            case 'streak':
                 await dailyCheckIn(message, client, db);
+                break;
+            case 'streak':
+                await showDailyStatus(message, client, db);
                 break;
             case 'jobs':
                 await showJobs(message, client, db);
@@ -426,6 +428,47 @@ async function dailyCheckIn(message, client, db) {
             { name: 'Total XP', value: `${economy.xp.toLocaleString()}`, inline: true }
         )
         .setFooter({ text: 'Check in every day to grow your streak!' })
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+// View-only daily status (does not claim)
+async function showDailyStatus(message, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+
+    const config = await db.getGuildConfig(guildId);
+    const economy = await db.getUserEconomy(userId, guildId);
+
+    const now = Date.now();
+    const cooldown = 24 * 60 * 60 * 1000; // 24h
+    const lastDaily = economy.last_daily || 0;
+    const nextAvailableMs = lastDaily ? (lastDaily + cooldown) : 0;
+    const nextAvailableSec = nextAvailableMs ? Math.floor(nextAvailableMs / 1000) : null;
+    const availableNow = !lastDaily || now >= nextAvailableMs;
+
+    const streak = economy.daily_streak || 0;
+    const baseCoins = config.daily_amount || 50;
+    const coinBonus = Math.floor(baseCoins * Math.min(streak + 1, 30) * 0.05); // preview next claim bonus
+    const nextCoins = baseCoins + coinBonus;
+
+    const embed = new EmbedBuilder()
+        .setColor('#00c853')
+        .setTitle('📅 Daily Check-In Status')
+        .setDescription(`Here\'s your current daily streak and next reward estimate.`)
+        .addFields(
+            { name: '🔥 Streak', value: `${streak} day${streak === 1 ? '' : 's'}`, inline: true },
+            { name: '🪙 Next Reward (est.)', value: `~${nextCoins.toLocaleString()} coins`, inline: true },
+            availableNow
+                ? { name: '⏳ Next Check-In', value: 'Available now', inline: true }
+                : { name: '⏳ Next Check-In', value: `<t:${nextAvailableSec}:R>`, inline: true },
+            lastDaily
+                ? { name: '✅ Last Check-In', value: `<t:${Math.floor(lastDaily / 1000)}:F>`, inline: true }
+                : { name: '✅ Last Check-In', value: 'No record yet', inline: true },
+            { name: '💵 Wallet', value: `$${(economy.wallet || 0).toLocaleString()}`, inline: true }
+        )
+        .setFooter({ text: 'Use ^economy daily or ^economy checkin to claim (UTC)' })
         .setTimestamp();
 
     await message.reply({ embeds: [embed] });
