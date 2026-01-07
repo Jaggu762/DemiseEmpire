@@ -57,24 +57,31 @@ module.exports = {
                 return message.reply('❌ Failed to retrieve ghost ping data.');
             }
             
-            const mentions = extractMentions(ghost.content);
+            // Determine who was pinged
+            const content = ghost.content || '';
+            let pinnedInfo = '❓ Unknown ping type';
+            
+            if (content.includes('@everyone')) {
+                pinnedInfo = '🔔 @everyone was pinged';
+            } else if (content.includes('@here')) {
+                pinnedInfo = '🔔 @here was pinged';
+            } else if (content.includes(`<@${message.author.id}>`)) {
+                pinnedInfo = `✋ You were directly pinged`;
+            } else if (content.match(/<@&(\d+)>/)) {
+                const roleMatch = content.match(/<@&(\d+)>/);
+                pinnedInfo = `👥 Role <@&${roleMatch[1]}> was pinged (you're in it)`;
+            }
             
             const embed = new EmbedBuilder()
                 .setColor('#ff0000')
-                .setTitle('👻 Ghost Ping Detected!')
-                .setDescription(`Someone pinged you and deleted the message!`)
+                .setTitle('👻 Ghost Ping Caught!')
+                .setDescription(`**Who pinged you:** <@${ghost.author || 'Unknown'}>\n**When:** <t:${Math.floor((ghost.timestamp || Date.now()) / 1000)}:R>`)
                 .addFields(
-                    { name: '👤 Deleted by', value: `<@${ghost.author || 'Unknown'}>`, inline: true },
-                    { name: '📅 Time', value: ghost.timestamp ? `<t:${Math.floor(ghost.timestamp / 1000)}:R>` : 'Unknown', inline: true },
-                    { name: '🔔 Mentions Found', value: mentions.join(', ') || 'Everyone/Here ping', inline: false }
+                    { name: '🎯 Ping Type', value: pinnedInfo, inline: false },
+                    { name: '📝 What they said', value: ghost.content.substring(0, 1024) || 'No content', inline: false }
                 );
             
-            if (ghost.content && !ghost.content.includes('@everyone') && !ghost.content.includes('@here')) {
-                const safeContent = ghost.content.substring(0, 500) || 'No content';
-                embed.addFields({ name: '📝 Message Content', value: safeContent, inline: false });
-            }
-            
-            embed.setFooter({ text: 'Ghost ping detected!' })
+            embed.setFooter({ text: `They tried to hide it, but we caught it! 😏` })
                 .setTimestamp(ghost.timestamp || Date.now());
             
             return message.reply({ embeds: [embed] });
@@ -166,15 +173,20 @@ module.exports = {
                 content.includes('<@&')
             );
             
+            let titleText = isGhostPing ? '👻 Ghost Ping Caught!' : '🗑️ Deleted Message';
+            let descriptionText = isGhostPing ? 
+                `**Who pinged you:** <@${snipe.author}>\n**When:** <t:${Math.floor((snipe.timestamp || Date.now()) / 1000)}:R>` :
+                `Message from <@${snipe.author}> (${formatTime(Date.now() - (snipe.timestamp || Date.now()))} ago)`;
+            
             const embed = new EmbedBuilder()
                 .setColor(isGhostPing ? '#ff0000' : '#ff9900')
-                .setTitle(isGhostPing ? '👻 Ghost Ping Detected!' : '🗑️ Deleted Message')
-                .setDescription(`Message deleted by <@${snipe.author}>`)
+                .setTitle(titleText)
+                .setDescription(descriptionText)
                 .addFields(
-                    { name: '📝 Content', value: content || 'No content', inline: false }
+                    { name: '📝 Message Content', value: content.substring(0, 1024) || 'No content', inline: false }
                 )
                 .setFooter({ 
-                    text: isGhostPing ? 'Someone pinged you and deleted it!' : `Deleted ${formatTime(Date.now() - (snipe.timestamp || Date.now()))} ago`
+                    text: isGhostPing ? `They tried to hide it, but we caught it! 😏` : `Deleted ${formatTime(Date.now() - (snipe.timestamp || Date.now()))} ago`
                 })
                 .setTimestamp(snipe.timestamp || Date.now());
             

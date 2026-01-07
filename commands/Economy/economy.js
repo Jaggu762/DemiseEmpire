@@ -57,6 +57,11 @@ module.exports = {
             case 'work':
                 await workJob(message, client, db);
                 break;
+            case 'daily':
+            case 'checkin':
+            case 'streak':
+                await dailyCheckIn(message, client, db);
+                break;
             case 'jobs':
                 await showJobs(message, client, db);
                 break;
@@ -298,19 +303,21 @@ async function showJobs(message, client, db) {
     const guildId = message.guild.id;
     
     const userJob = await db.getUserJob(userId, guildId);
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    const playerLevel = userEconomy?.level || 1;
     
     const embed = new EmbedBuilder()
         .setColor('#0099ff')
         .setTitle('💼 Available Jobs')
         .setDescription('Apply for a job using `^economy apply <job_id>`')
-        .setFooter({ text: `Your current job: ${userJob.job_type === 'unemployed' ? 'Unemployed' : JOBS.find(j => j.id === userJob.job_type)?.name || 'Unknown'}` });
+        .setFooter({ text: `Your current job: ${userJob.job_type === 'unemployed' ? 'Unemployed' : JOBS.find(j => j.id === userJob.job_type)?.name || 'Unknown'} | Player Level: ${playerLevel}` });
     
     JOBS.forEach(job => {
-        const canApply = userJob.job_level >= job.level - 1;
+        const canApply = playerLevel >= job.level;
         
         embed.addFields({
             name: `${job.name} ${userJob.job_type === job.id ? '✅' : ''}`,
-            value: `**ID:** \`${job.id}\`\n**Level:** ${job.level}\n**Salary:** $${job.salary}/day\n**XP Required:** ${job.xp_required}\n**Status:** ${canApply ? '✅ Available' : '🔒 Need Level ' + (job.level - 1)}`,
+            value: `**ID:** \`${job.id}\`\n**Required Player Level:** ${job.level}\n**Salary:** $${job.salary}/day\n**XP Required:** ${job.xp_required}\n**Status:** ${canApply ? '✅ Available' : '🔒 Need Player Level ' + job.level}`,
             inline: false
         });
     });
@@ -333,10 +340,12 @@ async function applyJob(message, args, client, db) {
     }
     
     const userJob = await db.getUserJob(userId, guildId);
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    const playerLevel = userEconomy?.level || 1;
     
     // Check requirements
-    if (userJob.job_level < job.level - 1) {
-        return message.reply(`❌ You need to be at level ${job.level - 1} to apply for this job.`);
+    if (playerLevel < job.level) {
+        return message.reply(`❌ You need to be at player level **${job.level}** to apply for **${job.name}**. Your level: **${playerLevel}**.`);
     }
     
     // Apply for job
@@ -359,6 +368,66 @@ async function applyJob(message, args, client, db) {
             { name: 'Start Working', value: 'Use `^economy work` to start earning!', inline: false }
         );
     
+    await message.reply({ embeds: [embed] });
+}
+
+// ========== DAILY CHECK-IN ==========
+async function dailyCheckIn(message, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+
+    const config = await db.getGuildConfig(guildId);
+    const economy = await db.getUserEconomy(userId, guildId);
+
+    const now = Date.now();
+    const lastDaily = economy.last_daily || 0;
+    const cooldown = 24 * 60 * 60 * 1000; // 24h
+
+    if (now - lastDaily < cooldown) {
+        const remaining = cooldown - (now - lastDaily);
+        const hrs = Math.floor(remaining / (1000 * 60 * 60));
+        const mins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        return message.reply(`⏳ You already checked in today. Come back in **${hrs}h ${mins}m**.`);
+    }
+
+    // Determine streak
+    const withinStreakWindow = now - lastDaily <= cooldown * 2; // 48h gap keeps streak
+    const newStreak = withinStreakWindow ? (economy.daily_streak || 0) + 1 : 1;
+
+    const baseCoins = config.daily_amount || 50;
+    const coinBonus = Math.floor(baseCoins * Math.min(newStreak, 30) * 0.05); // up to +150% at 30 streak
+    const coinsAwarded = baseCoins + coinBonus;
+
+    const xpAwarded = 50 + Math.floor(Math.random() * 51); // 50-100 XP
+    const pointsAwarded = 1 + Math.floor(newStreak / 7); // +1 every week streak
+
+    // Update economy
+    economy.wallet += coinsAwarded;
+    economy.xp = (economy.xp || 0) + xpAwarded;
+    economy.reputation = (economy.reputation || 0) + pointsAwarded;
+    economy.daily_streak = newStreak;
+    economy.last_daily = now;
+    economy.updated_at = now;
+    await db.updateUserEconomy(userId, guildId, economy);
+
+    // Log transaction
+    await db.addTransaction(userId, guildId, 'daily', coinsAwarded, { streak: newStreak, xp: xpAwarded, points: pointsAwarded });
+
+    const embed = new EmbedBuilder()
+        .setColor('#00c853')
+        .setTitle('✅ Daily Check-In')
+        .setDescription(`Thanks for checking in, ${message.author.username}!`)
+        .addFields(
+            { name: '🪙 Coins', value: `+${coinsAwarded.toLocaleString()}`, inline: true },
+            { name: '📈 XP', value: `+${xpAwarded.toLocaleString()}`, inline: true },
+            { name: '⭐ Points', value: `+${pointsAwarded}`, inline: true },
+            { name: '🔥 Streak', value: `${newStreak} day${newStreak === 1 ? '' : 's'}`, inline: true },
+            { name: 'Wallet', value: `$${economy.wallet.toLocaleString()}`, inline: true },
+            { name: 'Total XP', value: `${economy.xp.toLocaleString()}`, inline: true }
+        )
+        .setFooter({ text: 'Check in every day to grow your streak!' })
+        .setTimestamp();
+
     await message.reply({ embeds: [embed] });
 }
 
@@ -680,6 +749,7 @@ async function lotteryInfo(message, client, db) {
     // Get active tickets
     const activeTickets = await db.getActiveLotteryTickets(guildId);
     const totalPot = LOTTERY_JACKPOT_BASE + (activeTickets.length * LOTTERY_TICKET_PRICE);
+    const uniquePlayers = new Set(activeTickets.map(t => t.user_id)).size;
     
     const embed = new EmbedBuilder()
         .setColor('#ff00ff')
@@ -689,7 +759,8 @@ async function lotteryInfo(message, client, db) {
             { name: '🎟️ Ticket Price', value: `$${LOTTERY_TICKET_PRICE.toLocaleString()}`, inline: true },
             { name: '💰 Current Jackpot', value: `$${totalPot.toLocaleString()}`, inline: true },
             { name: '🎯 Active Tickets', value: `${activeTickets.length}`, inline: true },
-            { name: '📝 How to Play', value: 'Buy tickets with `^economy buyticket <number>` (1-100)\nDrawing happens when 100 tickets are sold\nWinning number is randomly generated', inline: false },
+            { name: '👥 Unique Players', value: `${uniquePlayers}`, inline: true },
+            { name: '📝 How to Play', value: 'Buy tickets with `^economy buyticket <number>` (1-100)\nDrawing happens when **10 tickets** are sold **and** at least **2 players** joined\nWinner is picked randomly from sold tickets', inline: false },
             { name: '🎲 Your Tickets', value: 'Use `^economy profile` to see your tickets', inline: false }
         )
         .setFooter({ text: 'Good luck!' });
@@ -1204,67 +1275,67 @@ async function stealMoney(message, client, db) {
     const targetUser = message.mentions.users.first();
     const userId = message.author.id;
     const guildId = message.guild.id;
-    
+
     if (!targetUser) {
         return message.reply('❌ Usage: `^economy steal @user`\nExample: `^economy steal @John`');
     }
-    
+
     if (targetUser.id === userId) {
         return message.reply('❌ You can\'t steal from yourself!');
     }
-    
+
     if (targetUser.bot) {
         return message.reply('❌ You can\'t steal from bots!');
     }
-    
+
     // Check cooldown (1 hour)
     if (!client.cooldowns) client.cooldowns = new Map();
     if (!client.cooldowns.has('steal')) client.cooldowns.set('steal', new Map());
-    
+
     const now = Date.now();
     const cooldownAmount = 60 * 60 * 1000; // 1 hour
     const timestamps = client.cooldowns.get('steal');
-    
+
     if (timestamps.has(userId)) {
         const expirationTime = timestamps.get(userId) + cooldownAmount;
-        
+
         if (now < expirationTime) {
             const timeLeft = expirationTime - now;
             const minutes = Math.floor(timeLeft / (60 * 1000));
             return message.reply(`⏰ You can steal again in ${minutes} minutes.`);
         }
     }
-    
+
     // Get both users' economy
     const userEconomy = await db.getUserEconomy(userId, guildId);
     const targetEconomy = await db.getUserEconomy(targetUser.id, guildId);
-    
+
     if (targetEconomy.wallet < 100) {
         return message.reply('❌ This user doesn\'t have enough money in their wallet to steal from!');
     }
-    
+
     // 50% success rate
     const success = Math.random() < 0.5;
-    
+
     if (success) {
         // Steal between 10% and 30% of target's wallet
         const stealPercentage = Math.random() * 0.2 + 0.1; // 10% to 30%
         const stolenAmount = Math.floor(targetEconomy.wallet * stealPercentage);
-        
+
         // Update both economies
         userEconomy.wallet += stolenAmount;
         targetEconomy.wallet -= stolenAmount;
-        
+
         await db.updateUserEconomy(userId, guildId, userEconomy);
         await db.updateUserEconomy(targetUser.id, guildId, targetEconomy);
-        
+
         // Log transactions
         await db.addTransaction(userId, guildId, 'steal_success', stolenAmount, { target: targetUser.id });
         await db.addTransaction(targetUser.id, guildId, 'stolen_from', -stolenAmount, { thief: userId });
-        
+
         // Set cooldown
         timestamps.set(userId, now);
-        
+
         const embed = new EmbedBuilder()
             .setColor('#00ff00')
             .setTitle('💰 Steal Successful!')
@@ -1275,38 +1346,35 @@ async function stealMoney(message, client, db) {
                 { name: '⏰ Next Steal', value: '1 hour', inline: true }
             )
             .setFooter({ text: 'Crime doesn\'t always pay!' });
-        
+
         await message.reply({ embeds: [embed] });
-        
-        // Notify victim
+
+        // Notify victim (ignore if DMs closed)
         try {
             const victimEmbed = new EmbedBuilder()
                 .setColor('#ff0000')
                 .setTitle('🚨 You\'ve Been Robbed!')
                 .setDescription(`${message.author.username} stole $${stolenAmount.toLocaleString()} from you in ${message.guild.name}!`)
-                .addFields(
-                    { name: '💼 Your New Balance', value: `$${targetEconomy.wallet.toLocaleString()}`, inline: true }
-                );
-            
+                .addFields({ name: '💼 Your New Balance', value: `$${targetEconomy.wallet.toLocaleString()}`, inline: true });
+
             await targetUser.send({ embeds: [victimEmbed] });
         } catch (error) {
             // User has DMs disabled
         }
     } else {
-        // Failed - lose money as fine
-        const fineAmount = Math.floor(userEconomy.wallet * 0.1); // 10% fine
-        
-        if (fineAmount > 0) {
-            userEconomy.wallet -= fineAmount;
-            await db.updateUserEconomy(userId, guildId, userEconomy);
-            
-            // Log transaction
-            await db.addTransaction(userId, guildId, 'steal_failed', -fineAmount);
-        }
-        
+        // Failed attempt: apply a fine between 10% of wallet (min $100)
+        const fineAmount = Math.min(
+            userEconomy.wallet,
+            Math.max(100, Math.floor(userEconomy.wallet * 0.1))
+        );
+
+        userEconomy.wallet -= fineAmount;
+        await db.updateUserEconomy(userId, guildId, userEconomy);
+        await db.addTransaction(userId, guildId, 'steal_failed', -fineAmount);
+
         // Set cooldown
         timestamps.set(userId, now);
-        
+
         const embed = new EmbedBuilder()
             .setColor('#ff0000')
             .setTitle('🚨 Steal Failed!')
@@ -1317,7 +1385,7 @@ async function stealMoney(message, client, db) {
                 { name: '⏰ Next Attempt', value: '1 hour', inline: true }
             )
             .setFooter({ text: 'Better luck next time!' });
-        
+
         await message.reply({ embeds: [embed] });
     }
 }
@@ -1648,3 +1716,4 @@ module.exports.lotteryInfo = lotteryInfo;
 module.exports.bankManagement = bankManagement;
 module.exports.showLeaderboard = showLeaderboard;
 module.exports.showProfile = showProfile;
+module.exports.dailyCheckIn = dailyCheckIn;
