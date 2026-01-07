@@ -48,7 +48,14 @@
 
 ### 💰 Economy Updates
 - **Daily Check-In** (`^economy daily` / `checkin` / `streak`): 24h cooldown with a 48h grace window to keep streaks, streak-based coin bonuses, XP, and reputation points.
-- **Lottery Quick Draw:** Now draws when **10 tickets** are sold **and** at least **2 players** joined; pot = base jackpot + ticket sales.
+- **Lottery System Overhaul:** 
+  - 10-minute timer starts automatically when the first ticket is purchased
+  - Timer persists through bot restarts (auto-resumes on next ticket purchase)
+  - **Rolling Jackpot:** If no one wins, the entire pot rolls over to the next round and keeps accumulating until someone wins!
+  - Live countdown display shows time remaining until draw
+  - Admin command `^economy forcelottery` to trigger draws instantly
+  - Pick numbers 1-100, matching the random draw wins the accumulated jackpot
+  - New `^economy lotteryresult` to view the last draw (winner or rollover) and current prize pool
 - **Job Applications:** Jobs require player level now; list shows availability based on your level.
 - **Steal Command Stability:** Fixed corrupt logic to restore victim DMs, fines, and cooldowns.
 
@@ -80,9 +87,10 @@
   - **Jobs:** Work, apply, level up (5 job tiers)
   - **Properties:** Buy/sell houses, shops, lands, businesses
   - **Banking:** Deposit, withdraw, collect daily rent
+    - **Daily Rewards:** Check-in for coins, XP, streaks & bonuses
   - **Trading:** Pay users, steal from others (50% success)
   - **Gambling:** Race, football betting, casino games
-  - **Lottery:** Buy tickets, win jackpots
+  - **Lottery:** Buy tickets (1-100), 10-min auto-draw, rolling jackpots, results viewer (`^economy lotteryresult`), admin draw (`^economy forcelottery`)
   - **Leaderboard:** Top richest players
   - **Profile:** View economy stats & transactions  
 
@@ -158,7 +166,7 @@ setguildjoin
 
 📁 Economy (1)
 economy (work, jobs, properties, buy, sell, 
-lottery, bank, steal, pay, race, football, 
+lottery, buyticket, lotteryresult, forcelottery, bank, steal, pay, race, football, 
 gamble, leaderboard, profile)
 
 📁 Fun (3)
