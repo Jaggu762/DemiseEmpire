@@ -37,6 +37,7 @@ const JOBS = [
 ];
 
 const LOTTERY_TICKET_PRICE = 1000;
+const AUTO_TICKET_PRICE = 2000; // price per auto-applied ticket per round
 const LOTTERY_JACKPOT_BASE = 100000; // initial base for first round
 const ROLLOVER_INCREMENT = 10000; // added each rollover round (1x, 2x, 3x ...)
 const MAX_LOTTERY_TICKETS = 5;
@@ -60,6 +61,52 @@ function computeCurrentPot(guildId, ticketsCount) {
         // First round: base + tickets
         return LOTTERY_JACKPOT_BASE + (ticketsCount * LOTTERY_TICKET_PRICE);
     }
+}
+
+async function applyAutoSubscriptions({ guildId, client, db, guildName }) {
+    // Fetch subscriptions and attempt to buy tickets for new round
+    const subs = await db.getAutoTicketsForGuild(guildId);
+    if (!subs || subs.length === 0) return false;
+
+    // Ensure we start from a clean round (should be right after draw)
+    const existing = await db.getActiveLotteryTickets(guildId);
+    const taken = new Set(existing.map(t => t.ticket_number));
+
+    let created = 0;
+    // Sort deterministically by user_id to avoid random conflicts
+    for (const sub of subs.sort((a, b) => (a.user_id > b.user_id ? 1 : -1))) {
+        const number = sub.number;
+        if (taken.has(number)) {
+            // Number already taken by another subscription; skip
+            continue;
+        }
+        // Charge user and create ticket if affordable
+        const economy = await db.getUserEconomy(sub.user_id, guildId);
+        if (!economy || economy.wallet < AUTO_TICKET_PRICE) {
+            // Insufficient funds: record a failed transaction and skip
+            await db.addTransaction(sub.user_id, guildId, 'autoticket_failed_insufficient_funds', 0, { ticket_number: number });
+            continue;
+        }
+        economy.wallet -= AUTO_TICKET_PRICE;
+        await db.updateUserEconomy(sub.user_id, guildId, economy);
+        try {
+            await db.buyLotteryTicket(sub.user_id, guildId, number, AUTO_TICKET_PRICE);
+            await db.addTransaction(sub.user_id, guildId, 'autoticket', -AUTO_TICKET_PRICE, { ticket_number: number });
+            taken.add(number);
+            created++;
+        } catch (err) {
+            // Refund on DB failure
+            const econ2 = await db.getUserEconomy(sub.user_id, guildId);
+            econ2.wallet += AUTO_TICKET_PRICE;
+            await db.updateUserEconomy(sub.user_id, guildId, econ2);
+        }
+    }
+
+    // If we created any tickets and no timer, schedule next draw
+    if (created > 0 && !lotteryTimers.has(guildId)) {
+        scheduleLotteryTimer({ guildId, client, db, guildName });
+    }
+    return created > 0;
 }
 
 module.exports = {
@@ -109,6 +156,15 @@ module.exports = {
                 break;
             case 'forcelottery':
                 await forceLottery(message, client, db);
+                break;
+            case 'autoticket':
+                await setAutoTicketCommand(message, args.slice(1), client, db);
+                break;
+            case 'cancelautoticket':
+                await cancelAutoTicketCommand(message, client, db);
+                break;
+            case 'autoticketstatus':
+                await autoTicketStatusCommand(message, client, db);
                 break;
             case 'buyticket':
                 await buyLotteryTicket(message, args.slice(1), client, db);
@@ -1007,6 +1063,68 @@ async function buyLotteryTicket(message, args, client, db) {
     await message.reply({ embeds: [embed] });
 }
 
+async function setAutoTicketCommand(message, args, client, db) {
+    if (args.length === 0) {
+        return message.reply('❌ Usage: `^economy autoticket <number>` (1-100)');
+    }
+    const ticketNumber = parseInt(args[0]);
+    if (isNaN(ticketNumber) || ticketNumber < 1 || ticketNumber > 100) {
+        return message.reply('❌ Please choose a number between 1 and 100.');
+    }
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+
+    await db.setAutoTicket(userId, guildId, ticketNumber, true);
+
+    const embed = new EmbedBuilder()
+        .setColor('#22c55e')
+        .setTitle('✅ Auto-Ticket Enabled')
+        .setDescription('We will auto-buy your number every round, even if you are offline.')
+        .addFields(
+            { name: 'Number', value: `#${ticketNumber}`, inline: true },
+            { name: 'Price per Round', value: `$${AUTO_TICKET_PRICE.toLocaleString()}`, inline: true },
+            { name: 'Note', value: 'Requires wallet funds at draw time. Subscriptions reset after a jackpot winner.' }
+        );
+    await message.reply({ embeds: [embed] });
+}
+
+async function cancelAutoTicketCommand(message, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    const existing = await db.getAutoTicket(userId, guildId);
+    if (!existing) return message.reply('ℹ️ You don\'t have an active auto-ticket.');
+
+    await db.removeAutoTicket(userId, guildId);
+    const embed = new EmbedBuilder()
+        .setColor('#f43f5e')
+        .setTitle('🛑 Auto-Ticket Disabled')
+        .setDescription('Your auto-ticket subscription has been cancelled.');
+    await message.reply({ embeds: [embed] });
+}
+
+async function autoTicketStatusCommand(message, client, db) {
+    const userId = message.author.id;
+    const guildId = message.guild.id;
+    const existing = await db.getAutoTicket(userId, guildId);
+    const activeTickets = await db.getActiveLotteryTickets(guildId);
+    const currentPot = computeCurrentPot(guildId, activeTickets.length);
+
+    const embed = new EmbedBuilder().setColor('#3b82f6').setTitle('🎟️ Auto-Ticket Status');
+    if (!existing) {
+        embed.setDescription('You do not have an active auto-ticket.').addFields(
+            { name: 'How to Enable', value: '`^economy autoticket <number>` (2k per round)' },
+            { name: 'Current Prize Pool', value: `$${currentPot.toLocaleString()}`, inline: true }
+        );
+    } else {
+        embed.setDescription('Auto-ticket is active.').addFields(
+            { name: 'Number', value: `#${existing.number}`, inline: true },
+            { name: 'Price per Round', value: `$${AUTO_TICKET_PRICE.toLocaleString()}`, inline: true },
+            { name: 'Since', value: `<t:${Math.floor(existing.created_at/1000)}:R>`, inline: true }
+        );
+    }
+    await message.reply({ embeds: [embed] });
+}
+
 // Determine if lottery should draw now: 2+ tickets OR 1 ticket older than 5 minutes
 function clearLotteryTimer(guildId) {
     if (lotteryTimers.has(guildId)) {
@@ -1112,6 +1230,14 @@ async function handleLotteryDraw({ guildId, client, db, embed = null, tickets, g
         if (embed) {
             embed.addFields({ name: '🎉 JACKPOT DRAWN!', value: `Winning Number: #${winningNumber}\nWinner: <@${winnerUserId}>\nPot: $${finalPot.toLocaleString()}`, inline: false });
         }
+
+        // Clear all auto-subscriptions in this guild after a win (reset)
+        try {
+            const subs = await db.getAutoTicketsForGuild(guildId);
+            for (const s of subs) {
+                await db.removeAutoTicket(s.user_id, guildId);
+            }
+        } catch (_) {}
     } else {
         // No winner - carry full pot forward and increment rollover count
         carryPots.set(guildId, finalPot);
@@ -1130,6 +1256,11 @@ async function handleLotteryDraw({ guildId, client, db, embed = null, tickets, g
             embed.addFields({ name: '🎲 No Winner', value: `Winning Number: #${winningNumber}\nNo matching tickets this round.\n💰 Jackpot rolls over: $${finalPot.toLocaleString()} will be added to next round!`, inline: false });
         }
     }
+
+    // After draw, auto-apply subscriptions for the new round
+    try {
+        await applyAutoSubscriptions({ guildId, client, db, guildName });
+    } catch (_) {}
 }
 
 async function bankManagement(message, args, client, db) {
@@ -1558,7 +1689,7 @@ async function showHelp(message) {
             { name: '📅 Daily Check-In', value: '`^economy daily` / `^economy checkin` / `^economy streak` - Claim daily rewards and view your streak (UTC, 24h cooldown)', inline: false },
             { name: '🏘️ Properties', value: '`^economy properties` - View your properties\n`^economy buy` - View available properties\n`^economy buy <type> <id>` - Buy a property\n`^economy sell <type> <index>` - Sell a property', inline: false },
             { name: '🏦 Bank', value: '`^economy bank` - View bank balance\n`^economy bank deposit <amount/all>` - Deposit money\n`^economy bank withdraw <amount/all>` - Withdraw money\n`^economy bank collect` - Collect daily rent', inline: false },
-            { name: '🎫 Lottery', value: '`^economy lottery` - View lottery info\n`^economy buyticket <number>` - Buy lottery ticket (1-100)\n`^economy lotteryresult` - View last draw and current prize pool\n`^economy forcelottery` - Admin: force draw now\nDraw starts on the first ticket and runs 10 minutes later. If no one wins, the jackpot rolls over and accumulates.', inline: false },
+            { name: '🎫 Lottery', value: '`^economy lottery` - View lottery info\n`^economy buyticket <number>` - Buy lottery ticket (1-100)\n`^economy lotteryresult` - View last draw and current prize pool\n`^economy forcelottery` - Admin: force draw now\n`^economy autoticket <number>` - Auto-buy your number every round (2k/round)\n`^economy cancelautoticket` - Cancel auto-ticket\n`^economy autoticketstatus` - View auto-ticket status\nDraw starts on the first ticket and runs 10 minutes later. If no one wins, the jackpot rolls over and accumulates (+10k per rollover).', inline: false },
             { name: '🎮 Games & Activities', value: '`^economy steal @user` - Steal money (50% success, 1h cooldown)\n`^economy pay @user <amount>` - Send money to others\n`^economy race <amount>` - Horse race betting (3x)\n`^economy football <amount> <red/blue>` - Team match betting\n`^economy gamble <amount>` - Test your luck (2x)', inline: false },
             { name: '📊 Leaderboards', value: '`^economy leaderboard` - View top 10 richest players', inline: false },
             { name: '👤 Profile', value: '`^economy profile [@user]` - View economy profile', inline: false }
