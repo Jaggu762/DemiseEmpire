@@ -44,6 +44,7 @@ const LOTTERY_TIMER_MS = 10 * 60 * 1000; // 10 minutes from first ticket purchas
 // In-memory timers to auto-draw lottery after the first ticket
 const lotteryTimers = new Map(); // guildId -> setTimeout handle
 const lotteryStartTimes = new Map(); // guildId -> timestamp when timer started
+const accumulatedJackpots = new Map(); // guildId -> accumulated jackpot amount
 
 module.exports = {
     name: 'economy',
@@ -799,7 +800,8 @@ async function lotteryInfo(message, client, db) {
     
     // Get active tickets
     const activeTickets = await db.getActiveLotteryTickets(guildId);
-    const totalPot = LOTTERY_JACKPOT_BASE + (activeTickets.length * LOTTERY_TICKET_PRICE);
+    const accumulated = accumulatedJackpots.get(guildId) || 0;
+    const totalPot = LOTTERY_JACKPOT_BASE + (activeTickets.length * LOTTERY_TICKET_PRICE) + accumulated;
     const uniquePlayers = new Set(activeTickets.map(t => t.user_id)).size;
     
     const embed = new EmbedBuilder()
@@ -905,6 +907,9 @@ async function buyLotteryTicket(message, args, client, db) {
         ticket_number: ticketNumber
     });
     
+    const accumulated = accumulatedJackpots.get(guildId) || 0;
+    const currentJackpot = LOTTERY_JACKPOT_BASE + (updatedTickets.length * LOTTERY_TICKET_PRICE) + accumulated;
+    
     const embed = new EmbedBuilder()
         .setColor('#ff00ff')
         .setTitle('🎫 Lottery Ticket Purchased!')
@@ -913,7 +918,7 @@ async function buyLotteryTicket(message, args, client, db) {
             { name: 'Your Number', value: `#${ticketNumber}`, inline: true },
             { name: 'Ticket Price', value: `$${LOTTERY_TICKET_PRICE}`, inline: true },
             { name: 'Your Tickets', value: `${updatedUserTickets.length}/${MAX_LOTTERY_TICKETS}`, inline: true },
-            { name: 'Current Jackpot', value: `$${(LOTTERY_JACKPOT_BASE + (updatedTickets.length) * LOTTERY_TICKET_PRICE).toLocaleString()}`, inline: false },
+            { name: 'Current Jackpot', value: `$${currentJackpot.toLocaleString()}`, inline: false },
             { name: 'Drawing', value: 'When **10 tickets** are sold & **2+ players** joined', inline: true }
         );
     
@@ -1001,7 +1006,8 @@ async function handleLotteryDraw({ guildId, client, db, embed = null, tickets, g
     const winningNumber = Math.floor(Math.random() * 100) + 1;
     const matchingTickets = tickets.filter(t => t.ticket_number === winningNumber);
     const winnerTicket = matchingTickets.length > 0 ? matchingTickets[Math.floor(Math.random() * matchingTickets.length)] : null;
-    const finalPot = LOTTERY_JACKPOT_BASE + (tickets.length * LOTTERY_TICKET_PRICE);
+    const accumulated = accumulatedJackpots.get(guildId) || 0;
+    const finalPot = LOTTERY_JACKPOT_BASE + (tickets.length * LOTTERY_TICKET_PRICE) + accumulated;
 
     if (winnerTicket) {
         const winnerUserId = winnerTicket.user_id;
@@ -1016,6 +1022,9 @@ async function handleLotteryDraw({ guildId, client, db, embed = null, tickets, g
             } catch (err) {/* ignore */}
         }
 
+        // Reset accumulated jackpot since someone won
+        accumulatedJackpots.delete(guildId);
+
         // DM winner
         try {
             const winnerUser = await client.users.fetch(winnerUserId);
@@ -1026,8 +1035,11 @@ async function handleLotteryDraw({ guildId, client, db, embed = null, tickets, g
             embed.addFields({ name: '🎉 JACKPOT DRAWN!', value: `Winning Number: #${winningNumber}\nWinner: <@${winnerUserId}>\nPot: $${finalPot.toLocaleString()}`, inline: false });
         }
     } else {
+        // No winner - accumulate the pot for next round
+        accumulatedJackpots.set(guildId, finalPot);
+        
         if (embed) {
-            embed.addFields({ name: '🎲 No Winner', value: `Winning Number: #${winningNumber}\nNo matching tickets this round.`, inline: false });
+            embed.addFields({ name: '🎲 No Winner', value: `Winning Number: #${winningNumber}\nNo matching tickets this round.\n💰 Jackpot rolls over: $${finalPot.toLocaleString()} will be added to next round!`, inline: false });
         }
     }
 }
