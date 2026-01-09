@@ -29,11 +29,17 @@ const PROPERTIES = {
 };
 
 const JOBS = [
-    { id: 'bank_teller', name: 'Bank Teller', salary: 500, level: 1, xp_required: 0 },
-    { id: 'bank_manager', name: 'Bank Manager', salary: 1500, level: 2, xp_required: 100 },
-    { id: 'investment_banker', name: 'Investment Banker', salary: 5000, level: 3, xp_required: 500 },
-    { id: 'bank_director', name: 'Bank Director', salary: 15000, level: 4, xp_required: 2000 },
-    { id: 'ceo', name: 'CEO', salary: 50000, level: 5, xp_required: 10000 }
+    { id: 'intern', name: 'Intern', salary: 5000, level: 1, xp_required: 0 },
+    { id: 'associate', name: 'Associate', salary: 25000, level: 3, xp_required: 300 },
+    { id: 'specialist', name: 'Specialist', salary: 75000, level: 5, xp_required: 1000 },
+    { id: 'coordinator', name: 'Coordinator', salary: 150000, level: 7, xp_required: 2100 },
+    { id: 'manager', name: 'Manager', salary: 300000, level: 9, xp_required: 3600 },
+    { id: 'director', name: 'Director', salary: 500000, level: 11, xp_required: 5500 },
+    { id: 'vp', name: 'Vice President', salary: 750000, level: 13, xp_required: 7800 },
+    { id: 'senior_vp', name: 'Senior Vice President', salary: 1000000, level: 15, xp_required: 10500 },
+    { id: 'president', name: 'President', salary: 1250000, level: 17, xp_required: 13500 },
+    { id: 'cfo', name: 'Chief Financial Officer', salary: 1400000, level: 19, xp_required: 16500 },
+    { id: 'ceo', name: 'Chief Executive Officer (CEO)', salary: 1500000, level: 21, xp_required: 20000 }
 ];
 
 const LOTTERY_TICKET_PRICE = 1000;
@@ -494,9 +500,10 @@ async function workJob(message, client, db) {
         return message.reply(`⏰ You can work again in ${hours}h ${minutes}m. Work every 8 hours!`);
     }
     
-    // Calculate salary with random bonus
+    // Calculate salary with random bonus (up to 1,500,000)
     const baseSalary = job.salary;
-    const bonus = Math.floor(Math.random() * baseSalary * 0.3); // Up to 30% bonus
+    const maxBonus = Math.min(1500000, baseSalary);
+    const bonus = Math.floor(Math.random() * maxBonus); // Random from 0 to 1,500,000 (or base if lower)
     const totalSalary = baseSalary + bonus;
     
     // Deduct income tax
@@ -1354,6 +1361,15 @@ async function setAutoTicketCommand(message, args, client, db) {
             { name: 'Applied Now', value: appliedNow ? 'Yes — 1 ticket purchased' : 'No — Will apply next round', inline: true },
             { name: 'Note', value: 'Requires wallet funds. Subscriptions reset after a jackpot winner.' }
         );
+    
+    // Check if user has sufficient funds for next round
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    if (userEconomy.wallet < AUTO_TICKET_PRICE && !appliedNow) {
+        embed.addFields(
+            { name: '⚠️ Low Wallet Warning', value: `You have $${userEconomy.wallet.toLocaleString()} but need $${AUTO_TICKET_PRICE.toLocaleString()} for the next round. Your auto-ticket will not apply until you earn more!`, inline: false }
+        );
+    }
+    
     await message.reply({ embeds: [embed] });
 }
 
@@ -1379,6 +1395,7 @@ async function autoTicketStatusCommand(message, client, db) {
     const existing = await db.getAutoTicket(userId, guildId);
     const activeTickets = await db.getActiveLotteryTickets(guildId);
     const currentPot = await computeCurrentPot(guildId, activeTickets.length, db);
+    const userEconomy = await db.getUserEconomy(userId, guildId);
 
     const embed = new EmbedBuilder().setColor('#3b82f6').setTitle('🎟️ Auto-Ticket Status');
     if (!existing) {
@@ -1392,6 +1409,17 @@ async function autoTicketStatusCommand(message, client, db) {
             { name: 'Price per Round', value: `$${AUTO_TICKET_PRICE.toLocaleString()}`, inline: true },
             { name: 'Since', value: `<t:${Math.floor(existing.created_at/1000)}:R>`, inline: true }
         );
+        
+        // Check wallet status
+        if (userEconomy.wallet < AUTO_TICKET_PRICE) {
+            embed.addFields(
+                { name: '⚠️ Insufficient Funds', value: `You have $${userEconomy.wallet.toLocaleString()} but need $${AUTO_TICKET_PRICE.toLocaleString()} for the next round. Your auto-ticket will NOT apply!`, inline: false }
+            );
+        } else {
+            embed.addFields(
+                { name: '✅ Wallet Status', value: `Ready! You have $${userEconomy.wallet.toLocaleString()}`, inline: false }
+            );
+        }
     }
     await message.reply({ embeds: [embed] });
 }
