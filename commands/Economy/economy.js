@@ -1060,8 +1060,12 @@ async function sellProperty(message, args, client, db) {
         return message.reply('❌ Property configuration not found.');
     }
     
-    // Calculate sell price (80% of original price)
-    const sellPrice = Math.floor(propertyConfig.price * 0.8);
+    // Calculate appreciation based on holding time
+    // Properties appreciate 0.1% per day held
+    const daysBought = Math.max(1, Math.floor((Date.now() - property.purchased_at) / (24 * 60 * 60 * 1000)));
+    const appreciationRate = Math.min(0.5, 0.001 * daysBought); // Cap at 50% max appreciation
+    const sellPrice = Math.floor(propertyConfig.price * (1 + appreciationRate));
+    const appreciationGain = sellPrice - propertyConfig.price;
     
     // Remove property from array
     propertyArray.splice(index, 1);
@@ -1091,6 +1095,8 @@ async function sellProperty(message, args, client, db) {
         .addFields(
             { name: 'Property', value: propertyConfig.name, inline: true },
             { name: 'Original Price', value: `$${propertyConfig.price.toLocaleString()}`, inline: true },
+            { name: 'Days Held', value: `${daysBought} days`, inline: true },
+            { name: 'Appreciation', value: `+${(appreciationRate * 100).toFixed(2)}% ($${appreciationGain.toLocaleString()})`, inline: true },
             { name: 'Sell Price', value: `$${sellPrice.toLocaleString()}`, inline: true },
             { name: 'New Balance', value: `$${economy.wallet.toLocaleString()}`, inline: false }
         );
@@ -2615,6 +2621,12 @@ async function stealMoney(message, client, db) {
         return message.reply('❌ You can\'t steal from bots!');
     }
 
+    // Check if user has minimum wallet
+    const userEconomy = await db.getUserEconomy(userId, guildId);
+    if (userEconomy.wallet < 10000) {
+        return message.reply('❌ You need at least $10,000 in your wallet to attempt stealing! (Collateral requirement)');
+    }
+
     // Check cooldown (1 hour)
     if (!client.cooldowns) client.cooldowns = new Map();
     if (!client.cooldowns.has('steal')) client.cooldowns.set('steal', new Map());
@@ -2633,8 +2645,7 @@ async function stealMoney(message, client, db) {
         }
     }
 
-    // Get both users' economy
-    const userEconomy = await db.getUserEconomy(userId, guildId);
+    // Get target's economy
     const targetEconomy = await db.getUserEconomy(targetUser.id, guildId);
 
     if (targetEconomy.wallet < 100) {
