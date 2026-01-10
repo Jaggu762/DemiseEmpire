@@ -1523,7 +1523,6 @@ async function autoTicketStatusCommand(message, client, db) {
                     { name: '❌ Insufficient Funds', value: `You have $${userEconomy.wallet.toLocaleString()} but need at least $2,000. Your auto-tickets will NOT apply!`, inline: false }
                 );
             }
-        }
         } else {
             embed.addFields(
                 { name: '✅ Wallet Status', value: `Ready! You have $${userEconomy.wallet.toLocaleString()}`, inline: false }
