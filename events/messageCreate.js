@@ -1,8 +1,5 @@
-const { EmbedBuilder, PermissionsBitField, Collection } = require('discord.js');
+const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 const config = require('../config.json');
-
-// Create cooldowns collection
-const cooldowns = new Collection();
 
 module.exports = {
     name: 'messageCreate',
@@ -52,71 +49,6 @@ async function handleCommand(message, client, guildConfig) {
                    client.commands.get(client.aliases.get(commandName));
     
     if (!command) return;
-    
-    // Check channel restrictions (before other checks)
-    const db = require('../utils/database');
-    const isBotOwner = client.botInfo.admins?.includes(message.author.id) || 
-                      message.author.id === client.botInfo.ownerId;
-    const hasAdminPerms = message.member.permissions.has(PermissionsBitField.Flags.Administrator);
-    
-    // Only apply restrictions if user is not admin or bot owner
-    if (!hasAdminPerms && !isBotOwner) {
-        const restrictions = await db.getChannelRestrictions(message.guild.id);
-        const commandCategory = command.category?.toLowerCase();
-        
-        if (restrictions && commandCategory && restrictions[commandCategory]) {
-            const allowedChannels = restrictions[commandCategory];
-            
-            if (allowedChannels.length > 0 && !allowedChannels.includes(message.channel.id)) {
-                // Command is restricted and not in allowed channel
-                const channelMentions = allowedChannels
-                    .map(id => message.guild.channels.cache.get(id))
-                    .filter(ch => ch)
-                    .map(ch => ch.toString())
-                    .join(', ');
-                
-                const categoryNames = {
-                    'ai': 'AI Commands',
-                    'admin': 'Admin Commands',
-                    'economy': 'Economy Commands',
-                    'fun': 'Fun Commands',
-                    'info': 'Info Commands',
-                    'leveling': 'Leveling Commands',
-                    'moderation': 'Moderation Commands',
-                    'music': 'Music Commands',
-                    'ticket': 'Ticket Commands',
-                    'utility': 'Utility Commands'
-                };
-                
-                const categoryName = categoryNames[commandCategory] || 'Commands';
-                
-                const restrictionEmbed = new EmbedBuilder()
-                    .setColor('#ff6b6b')
-                    .setTitle('🚫 Command Restricted')
-                    .setDescription(`**${categoryName}** can only be used in specific channels!`)
-                    .addFields(
-                        { name: '📍 Use this command in:', value: channelMentions || 'No channels configured', inline: false }
-                    )
-                    .setFooter({ text: 'This message will be deleted in 5 seconds' })
-                    .setTimestamp();
-                
-                try {
-                    // Delete user's command message
-                    await message.delete().catch(() => {});
-                    
-                    // Send notification and delete after 5 seconds
-                    const notificationMsg = await message.channel.send({ embeds: [restrictionEmbed] });
-                    setTimeout(() => {
-                        notificationMsg.delete().catch(() => {});
-                    }, 5000);
-                } catch (error) {
-                    console.error('Error handling channel restriction:', error);
-                }
-                
-                return; // Stop command execution
-            }
-        }
-    }
     
     // Check permissions
     if (command.permissions) {
