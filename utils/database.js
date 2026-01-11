@@ -924,7 +924,43 @@ class Database {
 
     async getActiveLotteryTickets(guildId) {
         if (!this.data.lottery) return [];
-        
+
+        let mutated = false;
+        const now = Date.now();
+
+        // Migrate legacy keys without ticket number suffix
+        for (const key of Object.keys(this.data.lottery)) {
+            const ticket = this.data.lottery[key];
+            if (!ticket) continue;
+            const parts = key.split('_');
+            // Expected new format: lottery_user_guild_ticketNumber (4 parts)
+            if (parts.length === 3 && ticket.ticket_number) {
+                const newKey = `lottery_${ticket.user_id}_${ticket.guild_id}_${ticket.ticket_number}`;
+                if (!this.data.lottery[newKey]) {
+                    this.data.lottery[newKey] = { ...ticket };
+                    delete this.data.lottery[key];
+                    mutated = true;
+                }
+            }
+        }
+
+        // Mark obviously stale tickets (older than 1 hour) as drawn to prevent ghost entries
+        const STALE_MS = 60 * 60 * 1000;
+        for (const key of Object.keys(this.data.lottery)) {
+            const ticket = this.data.lottery[key];
+            if (!ticket) continue;
+            if (ticket.guild_id !== guildId) continue;
+            if (ticket.drawn) continue;
+            if (!ticket.purchased_at) continue;
+            if (now - ticket.purchased_at > STALE_MS) {
+                ticket.drawn = true;
+                ticket.drawn_at = ticket.drawn_at || now;
+                mutated = true;
+            }
+        }
+
+        if (mutated) this.save();
+
         return Object.values(this.data.lottery).filter(ticket => 
             ticket.guild_id === guildId && !ticket.drawn
         );
@@ -964,12 +1000,29 @@ class Database {
 
     async removeAutoTicket(userId, guildId) {
         if (!this.data.autoLottery) return false;
+
         const key = `auto_${userId}_${guildId}`;
         if (this.data.autoLottery[key]) {
             delete this.data.autoLottery[key];
             this.save();
             return true;
         }
+
+        // Legacy safety: remove any entry that matches the same user/guild even if the key format changed
+        const legacyKey = Object.keys(this.data.autoLottery).find(k => {
+            const entry = this.data.autoLottery[k];
+            if (!entry) return false;
+            if (entry.user_id === userId && entry.guild_id === guildId) return true;
+            if (entry.userId === userId && entry.guildId === guildId) return true;
+            return false;
+        });
+
+        if (legacyKey) {
+            delete this.data.autoLottery[legacyKey];
+            this.save();
+            return true;
+        }
+
         return false;
     }
 
@@ -1372,23 +1425,25 @@ class Database {
         
         const tickets = await this.getActiveLotteryTickets(guildId);
         const winner = tickets.find(ticket => ticket.ticket_number === winningTicket);
-        
+        const now = Date.now();
+
+        // Mark winner ticket (key includes ticket number)
         if (winner) {
-            const key = `lottery_${winner.user_id}_${guildId}`;
-            if (this.data.lottery[key]) {
-                this.data.lottery[key].drawn = true;
-                this.data.lottery[key].won = true;
-                this.data.lottery[key].drawn_at = Date.now();
+            const winnerKey = `lottery_${winner.user_id}_${guildId}_${winner.ticket_number}`;
+            if (this.data.lottery[winnerKey]) {
+                this.data.lottery[winnerKey].drawn = true;
+                this.data.lottery[winnerKey].won = true;
+                this.data.lottery[winnerKey].drawn_at = now;
             }
         }
         
-        // Mark all tickets as drawn
+        // Mark all tickets as drawn (losers too), using correct keys with ticket numbers
         tickets.forEach(ticket => {
-            const key = `lottery_${ticket.user_id}_${guildId}`;
+            const key = `lottery_${ticket.user_id}_${guildId}_${ticket.ticket_number}`;
             if (this.data.lottery[key] && !this.data.lottery[key].drawn) {
                 this.data.lottery[key].drawn = true;
                 this.data.lottery[key].won = false;
-                this.data.lottery[key].drawn_at = Date.now();
+                this.data.lottery[key].drawn_at = now;
             }
         });
         
