@@ -331,7 +331,7 @@ async function handleDM(message, client) {
         .setDescription(`Hello ${message.author.username}! I'm a Discord bot.\n\n**Commands:** Use \`.help\` in a server to see all commands.\n**Support:** Join our support server for help.\n**Invite:** Use \`.invite\` to get invite links.`)
         .addFields(
             { name: '📊 Bot Info', value: `**Version:** ${client.botInfo.version}\n**Creator:** ${client.botInfo.creator}\n**Servers:** ${client.guilds.cache.size}`, inline: true },
-            { name: '🔗 Links', value: '[Support Server](https://discord.gg/your-server)\n[Invite Bot](https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID)\n[GitHub](https://github.com/your-repo)', inline: true }
+            { name: '🔗 Links', value: '[Support Server](https://discord.gg/r9QRUy6nrK)\n[Invite Bot](https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID)\n[GitHub](https://github.com/your-repo)', inline: true }
         )
         .setFooter({ text: `DTEmpire v${client.botInfo.version} | Created by Jaggu762` })
         .setTimestamp();
