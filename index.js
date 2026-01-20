@@ -55,7 +55,7 @@ client.ttsCache = new Map();
 client.botInfo = {
     name: config.bot.name,
     version: config.bot.version,
-    creator: "DargoTamber",
+    creator: "Jaggu762",
     prefix: config.bot.prefix,
     ownerId: config.bot.ownerId, // Add this line
     admins: config.bot.admins,   // Also add admins if you want multiple admin users

@@ -278,7 +278,7 @@ function pingEmbed(data, client, metrics = {}) {
     .setColor(0x4cc2ff)
     .addFields(
       { name: "Version", value: displayVersion || "unknown", inline: true },
-      { name: "Creator", value: "DargoTamber", inline: true },
+      { name: "Creator", value: "Jaggu762", inline: true },
       { name: "Uptime", value: formatUptime(botUptimeMs), inline: true },
       { name: "Ping", value: pingMs != null ? `${pingMs}ms` : "n/a", inline: true },
       { name: "API Latency", value: apiText.replace("Pollinations ", ""), inline: true },

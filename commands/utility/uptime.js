@@ -41,7 +41,7 @@ module.exports = {
                 { name: '📅 Started At', value: `<t:${Math.floor(client.botInfo.startedAt / 1000)}:R>`, inline: true }
             )
             .setFooter({ 
-                text: `DTEmpire v${client.botInfo.version} | Created by DargoTamber`,
+                text: `DTEmpire v${client.botInfo.version} | Created by Jaggu762`,
                 iconURL: client.user.displayAvatarURL() 
             })
             .setTimestamp();

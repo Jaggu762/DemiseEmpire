@@ -12,7 +12,7 @@
   <a href="https://dsc.gg/dtempirev2">
     <img src="https://img.shields.io/badge/Invite-DTEmpire-blue?style=for-the-badge&logo=discord" />
   </a>
-  <a href="https://discord.gg/eVuKw3VrvX">
+  <a href="https://discord.gg/r9QRUy6nrK">
     <img src="https://img.shields.io/badge/Support-Server-purple?style=for-the-badge&logo=discord" />
   </a>
 </p>
@@ -330,7 +330,7 @@ We welcome contributions from the community! Whether you're fixing bugs, adding 
 ### 🎯 Contribution Guidelines
 
 - **Code Contributions:** All accepted code will be credited with your GitHub username
-- **Feature Suggestions:** Join our [Discord Server](https://discord.gg/eVuKw3VrvX) to suggest features
+- **Feature Suggestions:** Join our [Discord Server](https://discord.gg/r9QRUy6nrK) to suggest features
 - **Bug Reports:** Open an issue on GitHub with detailed information
 - **Documentation:** Help improve our docs and examples
 
@@ -350,7 +350,7 @@ All contributors will be:
 
 ## 🤝 Support & Links
 
-* 💬 **Discord Support**: [https://discord.gg/eVuKw3VrvX](https://discord.gg/eVuKw3VrvX)
+* 💬 **Discord Support**: [https://discord.gg/r9QRUy6nrK](https://discord.gg/r9QRUy6nrK)
 * 📚 **Documentation**: [https://docs.ankitgupta.com.np/](https://docs.ankitgupta.com.np/)
 * 🐛 **Issues & Requests**: GitHub Issues
 
@@ -365,10 +365,10 @@ See the [LICENSE](LICENSE) file for details.
 
 ## 👤 Author
 
-**DargoTamber**
+**Jaggu762**
 
 * GitHub: [https://github.com/hyperdargo](https://github.com/hyperdargo)
-* Discord: DargoTamber
+* Discord: Jaggu762
 * Website: [https://ankitgupta.com.np](https://ankitgupta.com.np)
 
 ---

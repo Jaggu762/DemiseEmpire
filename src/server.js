@@ -171,7 +171,7 @@ app.get("/api/ai-identity", async (req, res) => {
       return res.json({ status: "success", text: reply, source: "identity", model: "nova-micro" });
     }
     if (isAskMaker(prompt) && isDTEmpireModel(effectiveModel)) {
-      const reply = "I was crafted by DargoTamber.";
+      const reply = "I was crafted by Jaggu762.";
       MemoryStore.recordMessage(userId, prompt, reply, { topic: "maker" });
       return res.json({ status: "success", text: reply, source: "identity", model: "nova-micro" });
     }
@@ -223,7 +223,7 @@ app.all("/api/ai-smart", async (req, res) => {
       return res.json({ status: "success", text: reply, source: "identity", model: "nova-micro" });
     }
     if (isAskMaker(prompt) && isDTEmpireModel(effectiveModel)) {
-      const reply = "I was crafted by DargoTamber.";
+      const reply = "I was crafted by Jaggu762.";
       MemoryStore.recordMessage(userId, prompt, reply, { topic: "maker" });
       return res.json({ status: "success", text: reply, source: "identity", model: "nova-micro" });
     }

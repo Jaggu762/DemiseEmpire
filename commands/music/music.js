@@ -92,7 +92,7 @@ module.exports = {
                     .setCustomId('music_quick_dj')
                     .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
-                    .setURL('https://discord.gg/zGxRRE3MS9')
+                    .setURL('https://discord.gg/r9QRUy6nrK')
                     .setLabel('Support')
                     .setStyle(ButtonStyle.Link)
             );

@@ -333,7 +333,7 @@ async function handleDM(message, client) {
             { name: '📊 Bot Info', value: `**Version:** ${client.botInfo.version}\n**Creator:** ${client.botInfo.creator}\n**Servers:** ${client.guilds.cache.size}`, inline: true },
             { name: '🔗 Links', value: '[Support Server](https://discord.gg/your-server)\n[Invite Bot](https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID)\n[GitHub](https://github.com/your-repo)', inline: true }
         )
-        .setFooter({ text: `DTEmpire v${client.botInfo.version} | Created by DargoTamber` })
+        .setFooter({ text: `DTEmpire v${client.botInfo.version} | Created by Jaggu762` })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

@@ -16,7 +16,7 @@ module.exports = {
                 { name: `${client.botInfo.prefix}help | v${client.botInfo.version}`, type: ActivityType.Playing },
                 { name: `${client.guilds.cache.size} servers`, type: ActivityType.Watching },
                 { name: `${client.users.cache.size} users`, type: ActivityType.Listening },
-                { name: 'DTEmpire by DargoTamber', type: ActivityType.Streaming, url: 'https://twitch.tv/discord' }
+                { name: 'DTEmpire by Jaggu762', type: ActivityType.Streaming, url: 'https://twitch.tv/discord' }
             ];
             
             const activity = activities[Math.floor(Math.random() * activities.length)];

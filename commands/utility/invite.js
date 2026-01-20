@@ -16,7 +16,7 @@ module.exports = {
                 { name: '✨ Features', value: '• Server Management\n• AI Chat & Image Gen\n• Economy System\n• Music Player\n• Moderation Tools\n• Auto Rooms\n• Giveaways\n• And much more!', inline: true },
                 { name: '📊 Statistics', value: `**Uptime:** ${Math.floor(client.uptime / 86400000)} days\n**Memory:** ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB\n**Ping:** ${Math.round(client.ws.ping)}ms`, inline: true }
             )
-            .setFooter({ text: `DTEmpire v${client.botInfo.version} | Created by DargoTamber`, iconURL: client.user.displayAvatarURL() })
+            .setFooter({ text: `DTEmpire v${client.botInfo.version} | Created by Jaggu762`, iconURL: client.user.displayAvatarURL() })
             .setTimestamp();
         
         // Create buttons
@@ -28,7 +28,7 @@ module.exports = {
                     .setStyle(ButtonStyle.Link),
                 new ButtonBuilder()
                     .setLabel('💬 Support Server')
-                    .setURL('https://discord.gg/8Vf5gxRWtV')
+                    .setURL('https://discord.gg/r9QRUy6nrK')
                     .setStyle(ButtonStyle.Link),
                 new ButtonBuilder()
                     .setLabel('⭐ GitHub')

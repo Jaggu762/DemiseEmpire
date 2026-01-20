@@ -23,7 +23,7 @@ module.exports = {
             .setTitle('🤖 DTEmpire Help Menu')
             .setDescription(`**Prefix:** \`${client.botInfo.prefix}\`\n**Version:** ${client.botInfo.version}\n**Total Commands:** ${client.commands.size}`)
             .setFooter({ 
-                text: `DTEmpire v${client.botInfo.version} | Created by DargoTamber`,
+                text: `DTEmpire v${client.botInfo.version} | Created by Jaggu762`,
                 iconURL: client.user.displayAvatarURL() 
             });
         
@@ -112,7 +112,7 @@ module.exports = {
                     .setLabel('🛡️ Moderation')
                     .setStyle(ButtonStyle.Danger),
                 new ButtonBuilder()
-                    .setURL('https://discord.gg/zGxRRE3MS9')
+                    .setURL('https://discord.gg/r9QRUy6nrK')
                     .setLabel('Support Server')
                     .setStyle(ButtonStyle.Link),
                 new ButtonBuilder()
@@ -314,7 +314,7 @@ function showMusicHelp(message, client) {
                 .setCustomId('music_quick_dj')
                 .setStyle(ButtonStyle.Success),
             new ButtonBuilder()
-                .setURL('https://discord.gg/zGxRRE3MS9')
+                .setURL('https://discord.gg/r9QRUy6nrK')
                 .setLabel('Support')
                 .setStyle(ButtonStyle.Link)
         );
