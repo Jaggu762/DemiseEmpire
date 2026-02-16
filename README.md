@@ -2,7 +2,7 @@
   <img src="https://i.imgur.com/exDGDGc.png" alt="DTEmpire Banner" />
 </p>
 
-<h1 align="center">🤖 DTEmpire v2</h1>
+<h1 align="center">🤖 DemiseEmpire v2</h1>
 
 <p align="center">
   A powerful, all-in-one Discord bot featuring AI tools, moderation, music, economy, utilities, and more — built for modern Discord servers.
@@ -21,7 +21,7 @@
 
 ## 📌 Overview
 
-**DTEmpire** is a feature-rich Discord bot designed to cover everything a normal server needs — from **AI integration** and **music playback** to **moderation**, **economy**, **tickets**, and **automation**.
+**DemiseEmpire** is a feature-rich Discord bot designed to cover everything a normal server needs — from **AI integration** and **music playback** to **moderation**, **economy**, **tickets**, and **automation**.
 
 - Prefix: `^`
 - Version: **2.8.0**
@@ -238,8 +238,8 @@ resume, skip, stop, volume
 ### 1️⃣ Clone the Repository
 
 ```bash
-git clone https://github.com/jaggu762/DTEmpire-v2.git
-cd DTEmpire-v2
+git clone https://github.com/jaggu762/DemiseEmpire.git
+cd DemiseEmpire
 ```
 
 ### 2️⃣ Install Dependencies
@@ -354,4 +354,5 @@ See the [LICENSE](LICENSE) file for details.
 <p align="center">
   DTEmpire v2.7.2 • Built with ❤️ for the Discord community
 </p>
+
 
